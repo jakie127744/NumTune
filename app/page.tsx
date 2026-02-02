@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { Mic2, Monitor, Music, Smartphone } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center p-6 font-display selection:bg-primary/30">
