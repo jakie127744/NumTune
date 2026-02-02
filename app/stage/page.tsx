@@ -226,8 +226,8 @@ export default function MainStage() {
                                      <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-violet-400 via-primary to-orange-400 tracking-tighter drop-shadow-2xl">
                                         Off Key Karaoke
                                      </h1>
-                                     <p className="text-2xl md:text-3xl font-medium text-white/50 tracking-widest uppercase">
-                                        Ignite the Stage
+                                     <p className="text-xl md:text-3xl font-medium text-white/50 tracking-widest uppercase mt-4">
+                                        Sing anyway, because fun isn't always in key
                                      </p>
                                 </div>
                                 
