@@ -30,7 +30,8 @@ interface TunrStore {
   syncNudge: number; // For manual alignment
   
   // Actions
-  generateRoomCode: () => string;
+  generateRoomCode: () => Promise<string>;
+  ensureSession: () => Promise<void>;
   setRoomCode: (code: string) => void;
   fetchQueue: () => Promise<void>;
   addToQueue: (song: Song, singer: string) => Promise<void>;
@@ -59,10 +60,47 @@ export const useTunrStore = create<TunrStore>((set, get) => ({
   syncLatency: 0,
   syncNudge: 0,
 
-  generateRoomCode: () => {
-    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
-    set({ roomCode: code });
-    return code;
+  ensureSession: async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+        const { error } = await supabase.auth.signInAnonymously();
+        if (error) console.error("Auto-Auth failed:", error);
+    }
+  },
+
+  generateRoomCode: async () => {
+    try {
+      // 1. Authenticate Host (Anonymous)
+      await get().ensureSession();
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+
+      if (!userId) {
+          alert("Could not sign in anonymously. Please enable Anonymous Auth in Supabase Dashboard.");
+          return "";
+      }
+
+      // 2. Generate and Register Room
+      const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+      
+      const { error: roomError } = await supabase.from('rooms').insert({
+          code,
+          owner_id: userId
+      });
+
+      if (roomError) {
+           console.error("Failed to create room:", roomError);
+           // Fallback: If code exists, try again (simple recursive retry could work, but let's just fail safe)
+           return "";
+      }
+
+      set({ roomCode: code });
+      return code;
+    } catch (e) {
+      console.error("Room generation logic error:", e);
+      return "";
+    }
   },
 
   setRoomCode: (code: string) => set({ roomCode: code.toUpperCase() }),
@@ -194,6 +232,7 @@ export const useTunrStore = create<TunrStore>((set, get) => ({
 
     if (insertError) {
         console.error("Failed to queue:", insertError);
+        alert(`Queue Failed: ${insertError.message}`);
     } else {
         // Refresh
         get().fetchQueue();

@@ -1,4 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config({ path: '.env.local' });
 
 const supabase = createClient(
@@ -7,13 +9,13 @@ const supabase = createClient(
 );
 
 async function run() {
-  const sql = `
-    ALTER TABLE queue ADD COLUMN IF NOT EXISTS current_position_seconds INTEGER DEFAULT 0;
-    ALTER TABLE queue ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-    ALTER TABLE queue ADD COLUMN IF NOT EXISTS reset_trigger_count INTEGER DEFAULT 0;
-  `;
+  const migrationFile = path.join(__dirname, 'migration_security_rls.sql');
+  const sql = fs.readFileSync(migrationFile, 'utf8');
 
   console.log("Running migration...");
+  
+  // Try to use a PG client if RPC fails, but for now assuming RPC exec_sql exists 
+  // (as per previous usage in this codebase, assuming user set it up)
   const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
   
   if (error) {

@@ -52,14 +52,19 @@ export default function HostDashboard() {
 
   // Initialize Data & Persistence
   React.useEffect(() => {
-    // 1. Check for saved custom code
-    const savedCode = localStorage.getItem('tunr_host_room_code');
-    
-    if (savedCode) {
-        setRoomCode(savedCode);
-    } else if (!roomCode) {
-        generateRoomCode();
-    }
+    const init = async () => {
+        await useTunrStore.getState().ensureSession();
+        
+        // 1. Check for saved custom code
+        const savedCode = localStorage.getItem('tunr_host_room_code');
+        
+        if (savedCode) {
+            setRoomCode(savedCode);
+        } else if (!roomCode) {
+            generateRoomCode();
+        }
+    };
+    init();
   }, []);
 
   // Check for missing keys (Undefined or Placeholder)
