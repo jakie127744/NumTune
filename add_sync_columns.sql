@@ -1,0 +1,4 @@
+-- Add sync columns to queue table
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS current_position_seconds INTEGER DEFAULT 0;
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS last_sync_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE queue ADD COLUMN IF NOT EXISTS reset_trigger_count INTEGER DEFAULT 0;

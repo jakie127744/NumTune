@@ -3,24 +3,57 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --font-spline-sans: "Spline Sans", sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: #7f13ec;
+  --color-accent-green: #22c55e;
+  --color-background-light: #f7f6f8;
+  --color-background-dark: #0f0f0f;
+  --color-card-dark: #1a1a1a;
+  --color-border-dark: #302839;
+
+  --font-display: var(--font-spline-sans);
+
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #0f0f0f;
     --foreground: #ededed;
   }
+}
+
+/* Material Symbols settings */
+.material-symbols-outlined {
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #302839;
+  border-radius: 10px;
+}
+.neon-glow-purple {
+  box-shadow: 0 0 15px rgba(127, 19, 236, 0.4);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-spline-sans), sans-serif;
 }
