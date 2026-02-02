@@ -185,7 +185,7 @@ export default function HostDashboard() {
               <span className="text-sm font-bold tracking-tight">Back</span>
            </Link>
            <div className="h-6 w-px bg-white/10 mx-2" />
-           <span className="font-bold text-lg tracking-tight">NumTune <span className="text-violet-400">Host</span></span>
+           <span className="font-bold text-lg tracking-tight">Off Key <span className="text-violet-400">Karaoke</span></span>
         </div>
         
         {/* Center Actions */}
@@ -289,7 +289,7 @@ export default function HostDashboard() {
             </button>
 
             <button 
-                 onClick={() => window.open('/stage', 'NumTuneStage', 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no')}
+                 onClick={() => window.open('/stage', 'OffKeyStage', 'width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no')}
                  className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-medium transition-all group"
             >
                 <Monitor className="w-4 h-4 text-violet-400" />

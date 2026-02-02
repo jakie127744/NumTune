@@ -385,7 +385,7 @@ const FALLBACK_SONGS = [
              <Music className="w-5 h-5 text-white" />
            </div>
         </Link>
-          <span className="font-bold text-lg tracking-tight">NumTune <span className="text-violet-400">Songbook</span></span>
+          <span className="font-bold text-lg tracking-tight">Off Key <span className="text-violet-400">Karaoke</span></span>
         </div>
           <div className="flex items-center gap-4">
              <Link href="/host" className="text-sm font-medium hover:text-primary transition-colors hidden md:block">

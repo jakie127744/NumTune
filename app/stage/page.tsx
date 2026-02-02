@@ -171,7 +171,7 @@ export default function MainStage() {
               <path d="M8.57829 8.57829C5.52816 11.6284 3.451 15.5145 2.60947 19.7452C1.76794 23.9758 2.19984 28.361 3.85056 32.3462C5.50128 36.3314 8.29667 39.7376 11.8832 42.134C15.4698 44.5305 19.6865 45.8096 24 45.8096C28.3135 45.8096 32.5302 44.5305 36.1168 42.134C39.7033 39.7375 42.4987 36.3314 44.1494 32.3462C45.8002 28.361 46.2321 23.9758 45.3905 19.7452C44.549 15.5145 42.4718 11.6284 39.4217 8.57829L24 24L8.57829 8.57829Z" fill="currentColor"></path>
             </svg>
           </div>
-          <h2 className="text-xl font-bold tracking-tight">NumTune <span className="text-primary font-normal ml-2">Main Stage</span></h2>
+          <h2 className="text-xl font-bold tracking-tight">Off Key <span className="text-primary font-normal ml-2">Karaoke</span></h2>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-end gap-1">
@@ -224,7 +224,7 @@ export default function MainStage() {
                                 <div className="space-y-4">
                                      <img src="/molave-logo.png" alt="Molave Labs" className="w-24 h-24 mx-auto mb-6 opacity-80 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
                                      <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-violet-400 via-primary to-orange-400 tracking-tighter drop-shadow-2xl">
-                                        NumTune
+                                        Off Key Karaoke
                                      </h1>
                                      <p className="text-2xl md:text-3xl font-medium text-white/50 tracking-widest uppercase">
                                         Ignite the Stage

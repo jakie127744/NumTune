@@ -126,7 +126,7 @@ export default function GuestPage() {
                     <Music className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                    <h1 className="font-bold text-lg leading-none">NumTune</h1>
+                    <h1 className="font-bold text-lg leading-none">Off Key Karaoke</h1>
                     <p className="text-[10px] text-primary font-bold uppercase tracking-widest">Songbook</p>
                 </div>
             </div>

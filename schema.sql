@@ -1,4 +1,4 @@
--- NumTune Database Schema
+-- Off Key Karaoke Database Schema
 
 -- 1. Songs Table (The Permanent Songbook)
 -- Stores the library of known/saved karaoke tracks

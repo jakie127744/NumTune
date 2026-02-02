@@ -13,7 +13,7 @@ export default function Home() {
             <Mic2 className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
-            NumTune
+            Off Key Karaoke
           </h1>
           <p className="text-xl text-neutral-400 max-w-xl mx-auto">
             The Digital Songbook for the Modern Stage.

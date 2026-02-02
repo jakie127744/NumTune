@@ -9,8 +9,8 @@ const splineSans = Spline_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "NumTune | Host Control Dashboard",
-  description: "Host Control Dashboard for NumTune",
+  title: "Off Key Karaoke | Host Control Dashboard",
+  description: "Host Control Dashboard for Off Key Karaoke",
 };
 
 export default function RootLayout({
