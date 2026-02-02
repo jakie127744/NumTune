@@ -116,7 +116,7 @@ export default function GuestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display pb-20">
+    <div className="min-h-screen bg-[#0c0811] text-white font-display pb-20">
       
       {/* Header */}
       <header className="sticky top-0 bg-background-dark/95 backdrop-blur-md border-b border-border-dark p-4 z-50">
