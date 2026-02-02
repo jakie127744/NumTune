@@ -34,8 +34,17 @@ create table public.queue (
   song_id bigint references public.songs(id) not null,
   singer_name text not null,
   status text check (status in ('queued', 'playing', 'history', 'cancelled')) default 'queued',
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  
+  -- Sync & Room Features
+  room_code text default 'A94B',
+  current_position_seconds integer default 0,
+  last_sync_at timestamp with time zone default now(),
+  reset_trigger_count integer default 0
 );
+
+-- Index for fast room lookups
+CREATE INDEX IF NOT EXISTS idx_queue_room_code ON public.queue(room_code) WHERE status = 'playing';
 
 -- Enable RLS
 alter table public.queue enable row level security;

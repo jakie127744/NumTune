@@ -222,7 +222,7 @@ export default function MainStage() {
                         {!isPlaying && (
                             <div className="absolute inset-0 z-30 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none p-10 text-center space-y-8 animate-in fade-in duration-1000">
                                 <div className="space-y-4">
-                                     <img src="/molave-logo.png" alt="Molave Labs" className="w-24 h-24 mx-auto mb-6 opacity-80 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
+                                     <img src="/off-key-logo.png" alt="Off Key Karaoke" className="w-24 h-24 mx-auto mb-6 opacity-80 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
                                      <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-violet-400 via-primary to-orange-400 tracking-tighter drop-shadow-2xl">
                                         Off Key Karaoke
                                      </h1>
