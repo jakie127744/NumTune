@@ -62,8 +62,8 @@ export default function HostDashboard() {
     }
   }, []);
 
-  // Check for missing keys
-  const isUsingPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder');
+  // Check for missing keys (Undefined or Placeholder)
+  const isUsingPlaceholder = !process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder');
 
   if (isUsingPlaceholder) {
       return (
