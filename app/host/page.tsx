@@ -62,6 +62,25 @@ export default function HostDashboard() {
     }
   }, []);
 
+  // Check for missing keys
+  const isUsingPlaceholder = process.env.NEXT_PUBLIC_SUPABASE_URL?.includes('placeholder');
+
+  if (isUsingPlaceholder) {
+      return (
+          <div className="flex h-screen items-center justify-center bg-red-950 text-white p-10 font-bold text-center">
+               <div className="space-y-4">
+                  <h1 className="text-4xl">⚠️ MISSING DATABASE KEYS</h1>
+                  <p className="text-xl opacity-80">The app is running, but it's not connected to your database.</p>
+                  <div className="bg-black/30 p-6 rounded-xl text-left font-mono text-sm space-y-2 mt-4 inline-block">
+                      <p>Go to Vercel Settings {'>'} Environment Variables:</p>
+                      <p className="text-green-400">NEXT_PUBLIC_SUPABASE_URL</p>
+                      <p className="text-green-400">NEXT_PUBLIC_SUPABASE_ANON_KEY</p>
+                  </div>
+               </div>
+          </div>
+      );
+  }
+
   // Fetch queue when room code changes
   React.useEffect(() => {
     if (roomCode) {
