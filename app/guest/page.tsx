@@ -163,73 +163,16 @@ export default function GuestPage() {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 lg:p-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative">
             
-            {/* Left: Library (8 cols) */}
-            <div className="lg:col-span-8 space-y-6">
-                {/* Connection Status */}
-                <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 flex items-center gap-3">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
-                    <p className="text-sm font-medium text-white/60 text-xs">Connected to <span className="font-black text-primary uppercase tracking-widest">Live Catalog</span></p>
-                </div>
-
-                {/* Song Library */}
-                <div>
-                    <h2 className="text-xs font-black text-white/20 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
-                        <Star className="w-3 h-3" /> {searchTerm ? 'Search Results' : 'Digital Songbook'}
-                    </h2>
-                    
-                    <div className="grid grid-cols-1 gap-3">
-                        {loading && (
-                            <div className="flex flex-col items-center justify-center py-20 gap-4">
-                                <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                                <p className="text-sm text-white/20 font-bold uppercase tracking-widest">Syncing Library...</p>
-                            </div>
-                        )}
-                        
-                        {!loading && filteredSongs.length === 0 && (
-                            <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
-                                <Music className="w-12 h-12 text-white/5 mx-auto mb-4" />
-                                <p className="text-white/40 font-medium">No songs found matching "{searchTerm}"</p>
-                                <p className="text-[10px] text-white/20 mt-2 uppercase tracking-widest">Try a different search term</p>
-                            </div>
-                        )}
-
-                        {filteredSongs.map((song) => (
-                            <motion.div 
-                                key={song.id}
-                                layout
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="group bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl p-4 flex items-center justify-between transition-all hover:border-primary/20 active:scale-[0.98]"
-                            >
-                                <div className="flex-1 min-w-0 pr-4">
-                                    <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors truncate">{song.title}</h3>
-                                    <p className="text-sm text-white/40 truncate">{song.artist}</p>
-                                    {song.genre !== 'Unknown' && (
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <span className="text-[9px] bg-white/5 px-2 py-0.5 rounded-full text-white/30 font-bold uppercase tracking-tighter border border-white/5">{song.genre}</span>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex flex-col items-center justify-center bg-black/40 rounded-xl px-4 py-2 min-w-[70px] border border-white/5 shadow-inner">
-                                    <span className="text-[8px] text-white/20 uppercase font-black tracking-widest mb-0.5">Song ID</span>
-                                    <span className="text-2xl font-black text-primary font-mono">{song.song_number}</span>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Right: Sticky Queue Form (4 cols) */}
-            <div className="lg:col-span-4 lg:sticky lg:top-32 space-y-6">
-                <div className="bg-[#120d18] p-8 rounded-[40px] border border-white/10 shadow-2xl space-y-8">
+            {/* Queue Form (Mobile: Top Sticky, Desktop: Right Sidebar) */}
+            <div className="lg:col-span-4 lg:sticky lg:top-32 lg:order-2 sticky top-[4.1rem] z-40 bg-[#0c0811] pt-2 pb-6 -mx-4 px-4 lg:mx-0 lg:px-0 lg:pt-0 lg:pb-0 lg:bg-transparent lg:z-auto lg:border-none border-b border-white/10 shadow-2xl lg:shadow-none transition-all">
+                <div className="bg-[#120d18] p-6 lg:p-8 rounded-[30px] lg:rounded-[40px] border border-white/10 shadow-2xl space-y-6 lg:space-y-8">
                     <div className="text-center space-y-2">
-                        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto border border-primary/20 mb-2">
-                            <Mic2 className="w-6 h-6 text-primary" />
+                        <div className="w-10 h-10 lg:w-12 lg:h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto border border-primary/20 mb-2">
+                            <Mic2 className="w-5 h-5 lg:w-6 lg:h-6 text-primary" />
                         </div>
-                        <h3 className="text-2xl font-black text-white italic uppercase leading-none">Queue It Up!</h3>
+                        <h3 className="text-xl lg:text-2xl font-black text-white italic uppercase leading-none">Queue It Up!</h3>
                         <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Instant Stage Access</p>
                     </div>
 
@@ -238,8 +181,8 @@ export default function GuestPage() {
                             <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-4">Song Number</label>
                             <input 
                                 type="number" 
-                                placeholder="Enter Song ID" 
-                                className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-5 px-6 text-center text-3xl font-black tracking-widest text-primary focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/5 placeholder:text-base placeholder:tracking-normal font-mono"
+                                placeholder="ID" 
+                                className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-6 text-center text-2xl lg:text-3xl font-black tracking-widest text-primary focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/5 placeholder:text-base placeholder:tracking-normal font-mono"
                                 value={songCode}
                                 onChange={(e) => setSongCode(e.target.value)}
                             />
@@ -250,7 +193,7 @@ export default function GuestPage() {
                              <input 
                                 type="text" 
                                 placeholder="Your Name" 
-                                className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-6 text-center text-white focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/10 font-bold"
+                                className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-3 px-6 text-center text-white focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/10 font-bold"
                                 value={singerName}
                                 onChange={(e) => setSingerName(e.target.value)}
                             />
@@ -294,7 +237,7 @@ export default function GuestPage() {
                                     setIsQueuing(false);
                                 }
                             }}
-                            className="w-full py-5 bg-primary text-black font-black text-lg rounded-2xl shadow-[0_20px_40px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 disabled:scale-100 flex items-center justify-center gap-2"
+                            className="w-full py-4 lg:py-5 bg-primary text-black font-black text-lg rounded-2xl shadow-[0_20px_40px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 disabled:scale-100 flex items-center justify-center gap-2"
                         >
                             {isQueuing ? (
                                 <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
@@ -310,18 +253,80 @@ export default function GuestPage() {
                                     window.location.reload();
                                 }
                             }}
-                            className="w-full text-[10px] font-black text-white/20 hover:text-white/40 transition-colors uppercase tracking-[0.3em] pt-4"
+                            className="w-full text-[10px] font-black text-white/20 hover:text-white/40 transition-colors uppercase tracking-[0.3em] pt-4 lg:hidden"
                         >
-                            Log Out of {roomCode}
+                            Log Out
                         </button>
                     </div>
                 </div>
-
-                <div className="pt-4 opacity-20 flex justify-center items-center gap-2">
+                <div className="hidden lg:flex pt-4 opacity-20 justify-center items-center gap-2">
                     <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Powered by</span>
                     <span className="text-sm font-black text-white tracking-widest uppercase italic">Molave Labs</span>
                 </div>
             </div>
+
+            {/* Library (Mobile: Bottom Scroll, Desktop: Left Content) */}
+            <div className="lg:col-span-8 space-y-6 lg:order-1">
+                {/* Connection Status */}
+                <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 flex items-center gap-3">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                    <p className="text-sm font-medium text-white/60 text-xs">Connected to <span className="font-black text-primary uppercase tracking-widest">Live Catalog</span></p>
+                </div>
+
+                {/* Song Library */}
+                <div>
+                    <h2 className="text-xs font-black text-white/20 uppercase tracking-[0.3em] mb-6 flex items-center gap-2">
+                        <Star className="w-3 h-3" /> {searchTerm ? 'Search Results' : 'Digital Songbook'}
+                    </h2>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                        {loading && (
+                            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                <p className="text-sm text-white/20 font-bold uppercase tracking-widest">Syncing Library...</p>
+                            </div>
+                        )}
+                        
+                        {!loading && filteredSongs.length === 0 && (
+                            <div className="text-center py-20 bg-white/5 rounded-3xl border border-dashed border-white/10">
+                                <Music className="w-12 h-12 text-white/5 mx-auto mb-4" />
+                                <p className="text-white/40 font-medium">No songs found matching "{searchTerm}"</p>
+                                <p className="text-[10px] text-white/20 mt-2 uppercase tracking-widest">Try a different search term</p>
+                            </div>
+                        )}
+
+                        {filteredSongs.map((song) => (
+                            <motion.div 
+                                key={song.id}
+                                layout
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="group bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl p-4 flex items-center justify-between transition-all hover:border-primary/20 active:scale-[0.98]"
+                                onClick={() => {
+                                    // Quick Fill from Library
+                                    setSongCode(song.song_number.toString());
+                                    window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top to see form!
+                                }}
+                            >
+                                <div className="flex-1 min-w-0 pr-4">
+                                    <h3 className="font-bold text-lg text-white group-hover:text-primary transition-colors truncate">{song.title}</h3>
+                                    <p className="text-sm text-white/40 truncate">{song.artist}</p>
+                                    {song.genre !== 'Unknown' && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className="text-[9px] bg-white/5 px-2 py-0.5 rounded-full text-white/30 font-bold uppercase tracking-tighter border border-white/5">{song.genre}</span>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex flex-col items-center justify-center bg-black/40 rounded-xl px-4 py-2 min-w-[70px] border border-white/5 shadow-inner">
+                                    <span className="text-[8px] text-white/20 uppercase font-black tracking-widest mb-0.5">Song ID</span>
+                                    <span className="text-2xl font-black text-primary font-mono">{song.song_number}</span>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
         </div>
       </main>
     </div>
