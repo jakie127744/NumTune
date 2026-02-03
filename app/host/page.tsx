@@ -39,7 +39,6 @@ export default function HostDashboard() {
   
   // Modals
   const [showNumberEntry, setShowNumberEntry] = useState(false);
-  const [showManualEntry, setShowManualEntry] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
   const [foundSong, setFoundSong] = useState<any>(null);
 
@@ -231,7 +230,6 @@ export default function HostDashboard() {
                         onRemove={removeFromQueue}
                         onMove={(id, dir) => moveQueueItem(id, dir)}
                         onOpenNumberEntry={() => setShowNumberEntry(true)}
-                        onOpenManualEntry={() => setShowManualEntry(true)}
                     />
                  </>
              )}
@@ -295,32 +293,7 @@ export default function HostDashboard() {
         </div>
       )}
 
-      {/* Manual Entry Modal */}
-      {showManualEntry && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-              <div className="bg-neutral-900 border border-white/10 p-6 rounded-3xl w-full max-w-md space-y-4">
-                  <h3 className="font-bold text-xl">Manual Queue</h3>
-                  <input id="m-title" placeholder="Title" className="w-full p-3 rounded bg-black/50" />
-                  <input id="m-artist" placeholder="Artist" className="w-full p-3 rounded bg-black/50" />
-                  <input id="m-singer" placeholder="Singer" className="w-full p-3 rounded bg-black/50" />
-                  <div className="flex gap-2">
-                      <button onClick={() => setShowManualEntry(false)} className="flex-1 py-3 bg-white/5 rounded">Cancel</button>
-                      <button onClick={() => {
-                          const title = (document.getElementById('m-title') as HTMLInputElement).value;
-                          const artist = (document.getElementById('m-artist') as HTMLInputElement).value || 'Unknown';
-                          const singer = (document.getElementById('m-singer') as HTMLInputElement).value;
-                          if (title && singer) {
-                              addToQueue({
-                                  id: Math.floor(Math.random() * 99999),
-                                  title, artist, singer, youtubeId: '', duration: '0:00'
-                              }, singer);
-                              setShowManualEntry(false);
-                          }
-                      }} className="flex-1 py-3 bg-violet-600 rounded font-bold">Queue</button>
-                  </div>
-              </div>
-          </div>
-      )}
+
 
     </div>
   );

@@ -9,15 +9,13 @@ interface QueueListProps {
   onRemove: (queueId: number) => void;
   onMove: (queueId: number, direction: 'up' | 'down') => void;
   onOpenNumberEntry: () => void;
-  onOpenManualEntry: () => void;
 }
 
 export const QueueList: React.FC<QueueListProps> = ({ 
   queue, 
   onRemove, 
   onMove, 
-  onOpenNumberEntry, 
-  onOpenManualEntry 
+  onOpenNumberEntry 
 }) => {
   if (queue.length === 0) {
     return (
@@ -26,21 +24,14 @@ export const QueueList: React.FC<QueueListProps> = ({
             <p className="text-lg font-medium mb-1">Queue is empty</p>
             <p className="text-sm opacity-60 max-w-[200px]">Add songs using the buttons below or scan the QR code to join.</p>
             
-            <div className="grid grid-cols-2 gap-4 mt-8 w-full max-w-sm px-4">
+            <div className="mt-8 w-full max-w-xs px-4">
                     <button 
                     onClick={onOpenNumberEntry}
-                    className="py-4 border-2 border-dashed border-violet-500/30 bg-violet-500/10 rounded-2xl text-violet-300 hover:border-violet-500 hover:text-white hover:bg-violet-500 transition-all flex flex-col items-center justify-center gap-2 font-bold"
+                    className="w-full py-4 border-2 border-dashed border-violet-500/30 bg-violet-500/10 rounded-2xl text-violet-300 hover:border-violet-500 hover:text-white hover:bg-violet-500 transition-all flex flex-col items-center justify-center gap-2 font-bold"
                     >
                     <ListMusic className="w-6 h-6" />
-                    <span className="text-sm">By Number</span>
+                    <span className="text-sm">Add Song by Number</span>
                     </button>
-                <button 
-                    onClick={onOpenManualEntry}
-                    className="py-4 border-2 border-dashed border-neutral-800 rounded-2xl text-neutral-500 hover:border-white/20 hover:text-neutral-300 hover:bg-white/5 transition-all flex flex-col items-center justify-center gap-2 font-medium"
-                >
-                    <UserPlus className="w-6 h-6" />
-                    <span className="text-sm">Manual</span>
-                </button>
             </div>
         </div>
     );
@@ -107,20 +98,13 @@ export const QueueList: React.FC<QueueListProps> = ({
       </div>
 
       {/* Buttons at bottom if queue exists */}
-      <div className="sticky bottom-0 pt-4 pb-2 bg-gradient-to-t from-neutral-900 to-transparent grid grid-cols-2 gap-3 mt-auto">
+      <div className="sticky bottom-0 pt-4 pb-2 bg-gradient-to-t from-neutral-900 to-transparent mt-auto">
         <button 
             onClick={onOpenNumberEntry}
-            className="py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-white/5"
+            className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-white/5 shadow-lg"
         >
             <ListMusic className="w-4 h-4" />
             Add by Number
-        </button>
-        <button 
-            onClick={onOpenManualEntry}
-            className="py-3 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors border border-white/5"
-        >
-            <UserPlus className="w-4 h-4" />
-            Manual Add
         </button>
       </div>
     </div>
