@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Spline_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -9,8 +9,22 @@ const splineSans = Spline_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Off Key Karaoke | Host Control Dashboard",
-  description: "Host Control Dashboard for Off Key Karaoke",
+  title: "Off Key Karaoke",
+  description: "Join the party! Control the stage from your phone.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    title: "OffKey",
+    statusBarStyle: "black-translucent",
+    capable: true,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#8b5cf6",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
