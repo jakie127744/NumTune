@@ -10,7 +10,19 @@ const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any
 import { useTunrStore } from '@/lib/store';
 
 export default function MainStage() {
-  const { queue, currentSong, isPlaying, setIsPlaying, fetchQueue, subscribeToQueue, playNext, roomCode, setRoomCode, syncLatency, syncNudge, setSyncNudge } = useTunrStore();
+  // OPTIMIZED SELECTORS
+  const queue = useTunrStore(s => s.queue);
+  const currentSong = useTunrStore(s => s.currentSong);
+  const isPlaying = useTunrStore(s => s.isPlaying);
+  const setIsPlaying = useTunrStore(s => s.setIsPlaying);
+  const fetchQueue = useTunrStore(s => s.fetchQueue);
+  const subscribeToQueue = useTunrStore(s => s.subscribeToQueue);
+  const roomCode = useTunrStore(s => s.roomCode);
+  const setRoomCode = useTunrStore(s => s.setRoomCode);
+  const syncLatency = useTunrStore(s => s.syncLatency);
+  const syncNudge = useTunrStore(s => s.syncNudge);
+  const setSyncNudge = useTunrStore(s => s.setSyncNudge);
+
   const [hasInteracted, setHasInteracted] = React.useState(false);
   const [tempCode, setTempCode] = React.useState('');
   const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
@@ -88,14 +100,39 @@ export default function MainStage() {
     }
   }, [currentSong?.resetTrigger, hasInteracted]);
 
-  // Sync Pause/Play with Visual IFrame
+  // Sync Pause/Play with Visual IFrame (ROBUST VERSION)
   React.useEffect(() => {
     if (!hasInteracted) return;
-    const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
-    if (iframe && iframe.contentWindow) {
-        const command = isPlaying ? 'playVideo' : 'pauseVideo';
-        iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: command, args: [] }), '*');
+    
+    const syncIframe = () => {
+        const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
+        if (iframe && iframe.contentWindow) {
+            const command = isPlaying ? 'playVideo' : 'pauseVideo';
+            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: command, args: [] }), '*');
+        }
+    };
+
+    // 1. Immediate
+    syncIframe();
+
+    // 2. Reinforce
+    const timeout = setTimeout(syncIframe, 300);
+
+    // 3. Keep-alive check
+    let interval: NodeJS.Timeout;
+    if (isPlaying) {
+         interval = setInterval(() => {
+             const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
+             if (iframe && iframe.contentWindow) {
+                 // Passive check or reinforce if needed
+             }
+         }, 2000);
     }
+
+    return () => {
+        clearTimeout(timeout);
+        if(interval) clearInterval(interval);
+    };
   }, [isPlaying, currentSong?.id, hasInteracted]);
   
   const nextSong = queue.length > 0 ? queue[0] : null;
@@ -214,9 +251,20 @@ export default function MainStage() {
                                 url={`https://www.youtube.com/watch?v=${currentSong.youtubeId}`}
                                 playing={Boolean(isPlaying)}
                                 muted={true}
+                                onError={(e: any) => {
+                                    console.error("Stage Logic Player Error:", e);
+                                    if (e && e.name === 'AbortError' && !isPlaying) {
+                                        console.warn("Stage AbortError Recovery");
+                                        const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
+                                        if (iframe && iframe.contentWindow) {
+                                            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
+                                        }
+                                    }
+                                }}
                                 // Removed onEnded={playNext} to prevent stage from advancing queue
                             />
                         </div>
+
                         
                         {/* Security Curtain & Branding: Shows when paused/stopped */}
                         {!isPlaying && (
