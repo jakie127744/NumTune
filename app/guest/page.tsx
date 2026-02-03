@@ -131,10 +131,19 @@ export default function GuestPage() {
                 </div>
             </div>
             <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 shadow-inner">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs font-black text-violet-400 tracking-widest">{roomCode}</span>
-                </div>
+                <button 
+                    onClick={() => {
+                        if(confirm("Leave this room?")) {
+                            localStorage.removeItem('tunr_guest_room');
+                            setRoomCode('');
+                            setHasJoined(false);
+                        }
+                    }}
+                    className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 shadow-inner hover:bg-red-500/10 hover:border-red-500/30 transition-all group"
+                >
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse group-hover:bg-red-500" />
+                    <span className="text-xs font-black text-violet-400 group-hover:text-red-400 tracking-widest">{roomCode}</span>
+                </button>
             </div>
         </div>
 

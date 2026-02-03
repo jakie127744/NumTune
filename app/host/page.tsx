@@ -99,11 +99,65 @@ export default function HostDashboard() {
         </div>
         
         <div className="flex items-center gap-6">
-           {/* Room Code */}
-           <div className="flex items-center gap-3 bg-violet-600/10 border-2 border-violet-500/20 px-4 py-1.5 rounded-2xl shadow-lg ring-1 ring-violet-500/20 group hover:bg-violet-600/20 transition-all">
-               <span className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em]">Code</span>
-               <span className="text-xl font-black text-white tracking-widest">{roomCode}</span>
-           </div>
+           {/* Room Code (Editable) */}
+           {isEditingCode ? (
+               <div className="flex items-center gap-3 bg-violet-600/10 border-2 border-violet-500/50 px-4 py-1.5 rounded-2xl shadow-lg ring-1 ring-violet-500/50">
+                   <span className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em]">Code</span>
+                   <input 
+                        autoFocus
+                        className="w-20 bg-transparent text-xl font-black text-white tracking-widest focus:outline-none uppercase"
+                        value={tempRoomCode}
+                        onChange={(e) => setTempRoomCode(e.target.value.toUpperCase())}
+                        onBlur={async () => {
+                            const newCode = tempRoomCode.trim().toUpperCase();
+                            if (newCode.length >= 4 && newCode !== roomCode) {
+                                const { data: { session } } = await supabase.auth.getSession();
+                                if (session?.user) {
+                                    const { data: existing } = await supabase.from('rooms').select('owner_id').eq('code', newCode).single();
+                                    
+                                    if (existing) {
+                                        if (existing.owner_id === session.user.id) {
+                                            setRoomCode(newCode);
+                                            localStorage.setItem('tunr_host_room_code', newCode);
+                                        } else {
+                                            alert("⚠️ This Room Code is taken!");
+                                            setTempRoomCode(roomCode);
+                                        }
+                                    } else {
+                                        const { error } = await supabase.from('rooms').insert({
+                                            code: newCode,
+                                            owner_id: session.user.id
+                                        });
+                                        if (!error) {
+                                            setRoomCode(newCode);
+                                            localStorage.setItem('tunr_host_room_code', newCode);
+                                        } else {
+                                            alert("Failed to create room.");
+                                            setTempRoomCode(roomCode);
+                                        }
+                                    }
+                                }
+                            } else if (newCode.length < 4) {
+                                setTempRoomCode(roomCode);
+                            }
+                            setIsEditingCode(false);
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                            }
+                        }}
+                   />
+               </div>
+           ) : (
+               <button 
+                  onClick={() => { setTempRoomCode(roomCode); setIsEditingCode(true); }}
+                  className="flex items-center gap-3 bg-violet-600/10 border-2 border-violet-500/20 px-4 py-1.5 rounded-2xl shadow-lg ring-1 ring-violet-500/20 group hover:bg-violet-600/20 hover:border-violet-500/40 transition-all cursor-text"
+               >
+                   <span className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em]">Code</span>
+                   <span className="text-xl font-black text-white tracking-widest">{roomCode}</span>
+               </button>
+           )}
 
             <button 
                  onClick={() => window.open('/stage', 'OffKeyStage', 'width=1920,height=1080')}
