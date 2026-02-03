@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactPlayer from 'react-player';
 import { useTunrStore } from '@/lib/store';
 
+const ReactPlayerAny = ReactPlayer as any;
+
 /**
  * HostGameEngine
  * 
@@ -52,7 +54,7 @@ export const HostGameEngine: React.FC = () => {
 
     return (
         <div style={{ position: 'fixed', bottom: 0, right: 0, width: 1, height: 1, opacity: 0.01, pointerEvents: 'none', zIndex: -1 }}>
-            <ReactPlayer
+            <ReactPlayerAny
                 key={`engine-${currentSong.id}`} // Force Remount on new song to clear buffers
                 url={`https://www.youtube.com/watch?v=${currentSong.youtubeId}`}
                 playing={Boolean(isPlaying)}
