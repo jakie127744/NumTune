@@ -63,7 +63,7 @@ export const HostGameEngine: React.FC = () => {
                     console.log("GameEngine: Song Ended. Triggering Next.");
                     playNext();
                 }}
-                onProgress={(p) => setElapsed(p.playedSeconds)}
+                onProgress={(p: any) => setElapsed(p.playedSeconds)}
                 onError={(e: any) => {
                     console.error("GameEngine Player Error:", e);
                     // AbortError Recovery
@@ -81,7 +81,7 @@ export const HostGameEngine: React.FC = () => {
                             autoplay: 1,
                         }
                     }
-                }}
+                } as any}
                 progressInterval={100}
             />
         </div>
