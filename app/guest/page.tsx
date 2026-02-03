@@ -167,8 +167,9 @@ export default function GuestPage() {
             
             {/* Queue Form (Mobile: Top Sticky, Desktop: Right Sidebar) */}
             <div className="lg:col-span-4 lg:sticky lg:top-32 lg:order-2 sticky top-[4.1rem] z-40 bg-[#0c0811] pt-2 pb-6 -mx-4 px-4 lg:mx-0 lg:px-0 lg:pt-0 lg:pb-0 lg:bg-transparent lg:z-auto lg:border-none border-b border-white/10 shadow-2xl lg:shadow-none transition-all">
-                <div className="bg-[#120d18] p-6 lg:p-8 rounded-[30px] lg:rounded-[40px] border border-white/10 shadow-2xl space-y-6 lg:space-y-8">
-                    <div className="text-center space-y-2">
+                <div className="bg-[#120d18] p-4 lg:p-8 rounded-[20px] lg:rounded-[40px] border border-white/10 shadow-2xl space-y-3 lg:space-y-8">
+                    {/* Header: Hidden on Mobile to save space */}
+                    <div className="text-center space-y-2 hidden lg:block">
                         <div className="w-10 h-10 lg:w-12 lg:h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto border border-primary/20 mb-2">
                             <Mic2 className="w-5 h-5 lg:w-6 lg:h-6 text-primary" />
                         </div>
@@ -176,27 +177,30 @@ export default function GuestPage() {
                         <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Instant Stage Access</p>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-4">Song Number</label>
-                            <input 
-                                type="number" 
-                                placeholder="ID" 
-                                className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-4 px-6 text-center text-2xl lg:text-3xl font-black tracking-widest text-primary focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/5 placeholder:text-base placeholder:tracking-normal font-mono"
-                                value={songCode}
-                                onChange={(e) => setSongCode(e.target.value)}
-                            />
-                        </div>
-                        
-                        <div className="space-y-1">
-                             <label className="text-[10px] font-black text-white/20 uppercase tracking-widest ml-4">Performer Name</label>
-                             <input 
-                                type="text" 
-                                placeholder="Your Name" 
-                                className="w-full bg-black/40 border-2 border-white/5 rounded-2xl py-3 px-6 text-center text-white focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/10 font-bold"
-                                value={singerName}
-                                onChange={(e) => setSingerName(e.target.value)}
-                            />
+                    <div className="space-y-2 lg:space-y-4">
+                        {/* Mobile: Row Layout for Inputs */}
+                        <div className="flex flex-row lg:flex-col gap-2 lg:gap-4 lg:space-y-4">
+                            <div className="w-[35%] lg:w-full space-y-1">
+                                <label className="hidden lg:block text-[10px] font-black text-white/20 uppercase tracking-widest ml-4">Song Number</label>
+                                <input 
+                                    type="number" 
+                                    placeholder="ID" 
+                                    className="w-full bg-black/40 border-2 border-white/5 rounded-xl lg:rounded-2xl py-3 lg:py-5 px-2 lg:px-6 text-center text-xl lg:text-3xl font-black tracking-widest text-primary focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/5 placeholder:text-sm lg:placeholder:text-base placeholder:tracking-normal font-mono"
+                                    value={songCode}
+                                    onChange={(e) => setSongCode(e.target.value)}
+                                />
+                            </div>
+                            
+                            <div className="flex-1 lg:w-full space-y-1">
+                                 <label className="hidden lg:block text-[10px] font-black text-white/20 uppercase tracking-widest ml-4">Performer Name</label>
+                                 <input 
+                                    type="text" 
+                                    placeholder="Your Name" 
+                                    className="w-full bg-black/40 border-2 border-white/5 rounded-xl lg:rounded-2xl py-3 lg:py-4 px-4 lg:px-6 text-center text-white text-sm lg:text-base focus:border-primary/50 focus:outline-none transition-all placeholder:text-white/10 font-bold"
+                                    value={singerName}
+                                    onChange={(e) => setSingerName(e.target.value)}
+                                />
+                            </div>
                         </div>
 
                         <button 
@@ -237,10 +241,10 @@ export default function GuestPage() {
                                     setIsQueuing(false);
                                 }
                             }}
-                            className="w-full py-4 lg:py-5 bg-primary text-black font-black text-lg rounded-2xl shadow-[0_20px_40px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 disabled:scale-100 flex items-center justify-center gap-2"
+                            className="w-full py-3 lg:py-5 bg-primary text-black font-black text-sm lg:text-lg rounded-xl lg:rounded-2xl shadow-[0_20px_40px_rgba(var(--primary-rgb),0.3)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 disabled:scale-100 flex items-center justify-center gap-2"
                         >
                             {isQueuing ? (
-                                <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                                <div className="w-4 h-4 lg:w-5 lg:h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
                             ) : (
                                 "QUEUE SONG"
                             )}
