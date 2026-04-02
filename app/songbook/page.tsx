@@ -116,7 +116,7 @@ export default function SongbookPage() {
       const query = encodeURIComponent(cleanTerm);
       
       const searchRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=20&q=${query}&key=${API_KEY}`
+        `/api/youtube?endpoint=search&part=snippet&type=video&videoEmbeddable=true&maxResults=20&q=${query}`
       );
       const searchData = await searchRes.json();
       
@@ -146,7 +146,7 @@ export default function SongbookPage() {
       }
 
       const videoRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}&key=${API_KEY}`
+        `/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoIds}`
       );
       const videoData = await videoRes.json();
 
@@ -275,14 +275,14 @@ const FALLBACK_SONGS = [
         console.log(`Attempting to seed via YouTube API (${selectedSource})...`);
 
         // 1. Fetch Popular Karaoke from selected source
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=50&q=${encodeURIComponent(selectedSource)}&order=viewCount&key=${API_KEY}`);
+        const res = await fetch(`/api/youtube?endpoint=search&part=snippet&type=video&videoEmbeddable=true&maxResults=50&q=${encodeURIComponent(selectedSource)}&order=viewCount`);
         const data = await res.json();
         
         if (data.error) throw new Error(data.error.message); 
         if (!data.items?.length) throw new Error("No songs found");
 
         const videoIds = data.items.map((i:any) => i.id.videoId).join(',');
-        const detailsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}&key=${API_KEY}`);
+        const detailsRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoIds}`);
         const detailsData = await detailsRes.json();
 
         // 2. Filter valid songs (1m - 7m)

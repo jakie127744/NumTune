@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { useTunrStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import dynamic from 'next/dynamic';
+const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
 
 export const HostPlayer: React.FC = () => {
     // OPTIMIZED SELECTORS
@@ -18,10 +20,9 @@ export const HostPlayer: React.FC = () => {
     const syncPosition = useTunrStore(s => s.syncPosition);
     const forceReset = useTunrStore(s => s.forceReset);
 
-    const [elapsed, setElapsed] = useState(0);
-    const elapsedRef = useRef(0);
     const [hostMuted, setHostMuted] = useState(true);
     const [isMounted, setIsMounted] = useState(false);
+    const [fallbackError, setFallbackError] = useState<string | null>(null);
     
     const hasSyncedRef = useRef(false);
 
@@ -29,48 +30,15 @@ export const HostPlayer: React.FC = () => {
         setIsMounted(true);
     }, []);
 
-    // Sync Ref
     useEffect(() => {
-        elapsedRef.current = elapsed;
-    }, [elapsed]);
-
-    // Reset on new song
-    useEffect(() => {
-        setElapsed(0);
         hasSyncedRef.current = false;
     }, [currentSong?.id]);
 
-    // Parse duration helper
-    const getDurationSeconds = (f: string) => {
-        if (!f) return 0;
-        const parts = f.split(':').map(Number);
-        if (parts.length === 2) return parts[0] * 60 + parts[1];
-        return 0;
-    };
 
-    const formatTime = (seconds: number) => {
-        const min = Math.floor(seconds / 60);
-        const sec = Math.floor(seconds % 60);
-        return `${min}:${sec.toString().padStart(2, '0')}`;
-    };
-
-    // ... sync logic ... (omitted, assuming no changes needed there unless replacing whole block)
-    // Actually, I can just target the definitions at the top and the ReactPlayer node separately.
-    // Wait, the previous chunk only updated the footer. I need to update the `url` prop in the JSX.
-    
-    // Changing strategy: Only update the state def here. The next tool call will update the usage.
-    // Wait, I can do it in one verify with multi_replace or carefully targeted replace.
-    // I already used replace_file_content for the footer.
-    // I will use this call to add state and reset logic.
-    // Then I will make another call for updating the `url` prop.
-    
-    // Oh, I can just do MultiReplace! No, I'll stick to sequential to be safe.
-    // Let's just add the state here.
 
     // SYNC LOGIC: IFrame Command (Cloned from Stage)
     useEffect(() => {
         const unsubscribe = useTunrStore.getState().onSync((seconds: number, playing?: boolean) => {
-            setElapsed(seconds); // Restore UI Timer update
             const iframe = document.getElementById('visual-iframe-host') as HTMLIFrameElement;
             
             // 1. Instant Play/Pause Sync
@@ -147,15 +115,52 @@ export const HostPlayer: React.FC = () => {
 
                 {/* Player Container */}
                 <div id="yt-player-container" className="absolute inset-0 z-20 overflow-hidden">
+
+                    {/* Error Display Overlay */}
+                    {fallbackError && (
+                        <div className="absolute inset-x-0 top-10 flex justify-center z-50 animate-in slide-in-from-top-10 fade-in duration-500">
+                            <div className="bg-red-600/90 text-white px-6 py-3 rounded-full font-bold shadow-2xl backdrop-blur-md flex items-center gap-3">
+                                 <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+                                 {fallbackError}
+                            </div>
+                        </div>
+                    )}
+
                     <div className="relative w-full h-full">
-                         {/* Visual Layer: Raw IFrame (Cloned from Stage) */}
+                        {/* Visual Layer: Raw IFrame (Cloned from Stage) */}
                          <iframe 
                             id="visual-iframe-host"
                             key={`visual-${currentSong.id}`}
-                            src={`https://www.youtube-nocookie.com/embed/${currentSong.youtubeId}?autoplay=1&mute=${hostMuted ? 1 : 0}&controls=0&enablejsapi=1&rel=0&modestbranding=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                            src={`https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1&mute=${hostMuted ? 1 : 0}&controls=0&enablejsapi=1&rel=0&modestbranding=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                             className="absolute inset-0 w-full h-full border-0 pointer-events-none z-10"
                             allow="autoplay; encrypted-media; picture-in-picture"
                         />
+                        
+                        {/* Logic Layer: Hidden ReactPlayer to catch Host-Side Errors */}
+                        <div className="opacity-0 pointer-events-none absolute -top-10 -left-10 w-1 h-1 overflow-hidden">
+                            <ReactPlayer 
+                                key={`logic-${currentSong.youtubeId}`}
+                                url={`https://www.youtube.com/watch?v=${currentSong.youtubeId}`}
+                                playing={Boolean(isPlaying)}
+                                muted={true}
+                                onError={(e: any) => {
+                                    console.error("Host Logic Player Error:", e);
+                                    const errorCode = typeof e === 'number' ? e : e?.data || e?.code;
+                                    
+                                    if (errorCode === 101 || errorCode === 150) {
+                                         const brokenId = currentSong.youtubeId;
+                                         setFallbackError("Error: Track restricted from embedding. Skipping in 3 seconds...");
+                                         setTimeout(() => {
+                                              setFallbackError(null);
+                                              // Double-skip prevention: Only skip if we are STILL stuck on the broken song
+                                              if (useTunrStore.getState().currentSong?.youtubeId === brokenId) {
+                                                  useTunrStore.getState().playNext();
+                                              }
+                                         }, 3000);
+                                    }
+                                }}
+                            />
+                        </div>
                         
                         {/* Pause Overlay (Visual Verification) */}
                         {!isPlaying && (
@@ -183,20 +188,7 @@ export const HostPlayer: React.FC = () => {
                 </div>
 
                 {/* Progress Bar */}
-                <div className="space-y-2 mb-6 relative z-10">
-                    <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
-                        <motion.div 
-                            className="h-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]" 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${(elapsed / Math.max(getDurationSeconds(currentSong.duration), 1)) * 100}%` }}
-                            transition={{ ease: "linear", duration: 0.5 }}
-                        />
-                    </div>
-                    <div className="flex justify-between text-xs text-neutral-500 font-medium">
-                        <span>{formatTime(elapsed)}</span>
-                        <span>{currentSong.duration}</span>
-                    </div>
-                </div>
+                <PlayerProgressBar duration={currentSong.duration} id={currentSong.id} />
 
                 {/* Buttons */}
                 <div className="flex items-center justify-between relative z-10">
@@ -220,6 +212,51 @@ export const HostPlayer: React.FC = () => {
                     </div>
                 </div>
             </motion.div>
+        </div>
+    );
+};
+
+const PlayerProgressBar = ({ duration, id }: { duration: string, id: number }) => {
+    const [elapsed, setElapsed] = useState(0);
+
+    useEffect(() => {
+        setElapsed(0);
+    }, [id]);
+
+    useEffect(() => {
+        const unsubscribe = useTunrStore.getState().onSync((seconds: number) => {
+            setElapsed(seconds);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const getDurationSeconds = (f: string) => {
+        if (!f) return 0;
+        const parts = f.split(':').map(Number);
+        if (parts.length === 2) return parts[0] * 60 + parts[1];
+        return 0;
+    };
+
+    const formatTime = (seconds: number) => {
+        const min = Math.floor(seconds / 60);
+        const sec = Math.floor(seconds % 60);
+        return `${min}:${sec.toString().padStart(2, '0')}`;
+    };
+
+    return (
+        <div className="space-y-2 mb-6 relative z-10">
+            <div className="w-full h-1 bg-neutral-800 rounded-full overflow-hidden">
+                <motion.div 
+                    className="h-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]" 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(elapsed / Math.max(getDurationSeconds(duration), 1)) * 100}%` }}
+                    transition={{ ease: "linear", duration: 0.5 }}
+                />
+            </div>
+            <div className="flex justify-between text-xs text-neutral-500 font-medium">
+                <span>{formatTime(elapsed)}</span>
+                <span>{duration}</span>
+            </div>
         </div>
     );
 };

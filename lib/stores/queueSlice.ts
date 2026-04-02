@@ -22,8 +22,17 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
       const userId = session?.user?.id;
 
       if (!userId) {
-          alert("Could not sign in anonymously. Please enable Anonymous Auth in Supabase Dashboard.");
+          alert("Could not initialize session auth.");
           return "";
+      }
+
+      // If user is authenticated genuinely, try to recover their existing room
+      if (!session?.user?.is_anonymous) {
+          const { data: existingRoom } = await supabase.from('rooms').select('code').eq('owner_id', userId).order('created_at', { ascending: false }).limit(1).single();
+          if (existingRoom) {
+              set({ roomCode: existingRoom.code });
+              return existingRoom.code;
+          }
       }
 
       const code = Math.random().toString(36).substring(2, 6).toUpperCase();

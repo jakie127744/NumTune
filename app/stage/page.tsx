@@ -15,6 +15,7 @@ export default function MainStage() {
   const currentSong = useTunrStore(s => s.currentSong);
   const isPlaying = useTunrStore(s => s.isPlaying);
   const setIsPlaying = useTunrStore(s => s.setIsPlaying);
+  const playNext = useTunrStore(s => s.playNext);
   const fetchQueue = useTunrStore(s => s.fetchQueue);
   const subscribeToQueue = useTunrStore(s => s.subscribeToQueue);
   const roomCode = useTunrStore(s => s.roomCode);
@@ -24,6 +25,7 @@ export default function MainStage() {
   const setSyncNudge = useTunrStore(s => s.setSyncNudge);
 
   const [hasInteracted, setHasInteracted] = React.useState(false);
+  const [fallbackError, setFallbackError] = React.useState<string | null>(null);
   const [tempCode, setTempCode] = React.useState('');
   const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
 
@@ -230,6 +232,16 @@ export default function MainStage() {
                     </div>
                 )}
 
+                {/* Error Display Overlay */}
+                {fallbackError && (
+                    <div className="absolute inset-x-0 top-10 flex justify-center z-50 animate-in slide-in-from-top-10 fade-in duration-500">
+                        <div className="bg-red-600/90 text-white px-6 py-3 rounded-full font-bold shadow-2xl backdrop-blur-md flex items-center gap-3">
+                             <div className="w-2 h-2 rounded-full bg-white animate-ping" />
+                             {fallbackError}
+                        </div>
+                    </div>
+                )}
+
                 {/* Hybrid Stage Player: IFrame for Visuals, ReactPlayer for Events */}
                 {currentSong?.youtubeId && hasInteracted && (
                     <div className="relative w-full h-full">
@@ -237,7 +249,7 @@ export default function MainStage() {
                         <iframe 
                             id="visual-iframe-stage"
                             key={`visual-${currentSong.youtubeId}-${hasInteracted}`}
-                            src={`https://www.youtube-nocookie.com/embed/${currentSong.youtubeId}?autoplay=1&mute=0&controls=0&enablejsapi=1&rel=0&modestbranding=1&start=${Math.floor(currentSong.currentPosition || 0)}&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                            src={`https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1&mute=0&controls=0&enablejsapi=1&rel=0&modestbranding=1&start=${Math.floor(currentSong.currentPosition || 0)}&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                             className="absolute inset-0 w-full h-full border-0 pointer-events-none z-10"
                             allow="autoplay; encrypted-media; picture-in-picture"
                             allowFullScreen
@@ -253,7 +265,15 @@ export default function MainStage() {
                                 muted={true}
                                 onError={(e: any) => {
                                     console.error("Stage Logic Player Error:", e);
-                                    if (e && e.name === 'AbortError' && !isPlaying) {
+                                    const errorCode = typeof e === 'number' ? e : e?.data || e?.code;
+                                    
+                                    if (errorCode === 101 || errorCode === 150) {
+                                         setFallbackError("Error: Track restricted from embedding. Skipping in 3 seconds...");
+                                         setTimeout(() => {
+                                              setFallbackError(null);
+                                              useTunrStore.getState().playNext();
+                                         }, 3000);
+                                    } else if (e && e.name === 'AbortError' && !isPlaying) {
                                         console.warn("Stage AbortError Recovery");
                                         const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
                                         if (iframe && iframe.contentWindow) {

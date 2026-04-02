@@ -41,10 +41,17 @@ export default function HostDashboard() {
   const [showNumberEntry, setShowNumberEntry] = useState(false);
   const [lookupNumber, setLookupNumber] = useState('');
   const [foundSong, setFoundSong] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
 
   React.useEffect(() => {
     const init = async () => {
         await useTunrStore.getState().ensureSession();
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user && !session.user.is_anonymous) {
+            setUser(session.user);
+        }
+
         const savedCode = localStorage.getItem('tunr_host_room_code');
         if (savedCode) {
             setRoomCode(savedCode);
@@ -98,6 +105,25 @@ export default function HostDashboard() {
         </div>
         
         <div className="flex items-center gap-6">
+           {/* User Profile / Auth */}
+           {!user ? (
+               <Link href="/auth" className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white transition-all text-xs font-bold ring-1 ring-violet-500/50">
+                   Host Login
+               </Link>
+           ) : (
+               <div className="flex items-center gap-2 group/profile relative">
+                   <div className="w-8 h-8 rounded-full bg-violet-600 flex items-center justify-center text-sm font-bold shadow-[0_0_15px_rgba(139,92,246,0.4)] cursor-pointer">
+                       {user.email?.charAt(0).toUpperCase()}
+                   </div>
+                   <button 
+                       onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }}
+                       className="absolute top-10 right-0 w-max px-4 py-2 bg-neutral-800 text-xs text-white rounded shadow-xl opacity-0 translate-y-2 pointer-events-none group-hover/profile:opacity-100 group-hover/profile:translate-y-0 group-hover/profile:pointer-events-auto transition-all"
+                   >
+                       Sign Out
+                   </button>
+               </div>
+           )}
+
            {/* Room Code (Editable) */}
            {isEditingCode ? (
                <div className="flex items-center gap-3 bg-violet-600/10 border-2 border-violet-500/50 px-4 py-1.5 rounded-2xl shadow-lg ring-1 ring-violet-500/50">
