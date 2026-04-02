@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Maximize, User, ListMusic, Music, Monitor } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, User, ListMusic, Music, Monitor } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
@@ -25,6 +25,7 @@ export default function MainStage() {
   const setSyncNudge = useTunrStore(s => s.setSyncNudge);
 
   const [hasInteracted, setHasInteracted] = React.useState(false);
+  const [isMuted, setIsMuted] = React.useState(false);
   const [fallbackError, setFallbackError] = React.useState<string | null>(null);
   const [tempCode, setTempCode] = React.useState('');
   const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
@@ -248,8 +249,8 @@ export default function MainStage() {
                         {/* Visual Layer: Raw IFrame (Highly Reliable) */}
                         <iframe 
                             id="visual-iframe-stage"
-                            key={`visual-${currentSong.youtubeId}-${hasInteracted}`}
-                            src={`https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1&mute=0&controls=0&enablejsapi=1&rel=0&modestbranding=1&start=${Math.floor(currentSong.currentPosition || 0)}&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
+                            key={`visual-${currentSong.youtubeId}-${hasInteracted}-${isMuted}`}
+                            src={`https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&enablejsapi=1&rel=0&modestbranding=1&start=${Math.floor(currentSong.currentPosition || 0)}&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                             className="absolute inset-0 w-full h-full border-0 pointer-events-none z-10"
                             allow="autoplay; encrypted-media; picture-in-picture"
                             allowFullScreen
@@ -372,6 +373,17 @@ export default function MainStage() {
                     {syncLatency}ms delay
                  </span>
               </div>
+          </div>
+
+          {/* Mute Control */}
+          <div className="flex flex-col items-end gap-2 pr-2">
+             <button 
+                 onClick={() => setIsMuted(!isMuted)}
+                 className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all shadow-xl active:scale-90"
+             >
+                 {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
+             </button>
+             <span className="text-[8px] font-black uppercase tracking-widest text-primary/60">Guest Device</span>
           </div>
 
           {/* Manual Phase Alignment (Nudge) */}
