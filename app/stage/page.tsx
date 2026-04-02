@@ -282,7 +282,18 @@ export default function MainStage() {
                                         }
                                     }
                                 }}
-                                // Removed onEnded={playNext} to prevent stage from advancing queue
+                                onEnded={() => {
+                                    console.log("Track ended. Starting 5-second intermission...");
+                                    const songEndedId = currentSong.id;
+                                    
+                                    useTunrStore.getState().setIsPlaying(false);
+                                    
+                                    setTimeout(() => {
+                                        if (useTunrStore.getState().currentSong?.id === songEndedId) {
+                                            useTunrStore.getState().playNext();
+                                        }
+                                    }, 5000);
+                                }}
                             />
                         </div>
 
