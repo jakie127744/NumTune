@@ -101,3 +101,33 @@ Prevention:
 
 - Rule or Pattern: Always implement active fallback mechanisms on critical UI failures where user interaction is physically impossible (remote display monitors).
 - Future Safeguard: Add fallback handlers with timeout checks for stream components natively.
+
+
+Bug:
+- Description: Song track looping indefinitely and not advancing to next queue item after ending.
+- Location: app/stage/page.tsx, components/host/HostPlayer.tsx, lib/stores/playerSlice.ts
+- Root Cause: Dual-layer player strategy caused invisible muted ReactPlayer logic layers to be aggressively throttled by Chromium engine, preventing onEnded events. Furthermore, simultaneous queue advancements triggered race condition dropping session control.
+
+Fix:
+- Summary: Replaced dual-layer visual iframe + hidden logic setup with single universally visible ReactPlayer to natively bypass browser throttling safely. Added atomic lock to playNext.
+- Files Changed: app/stage/page.tsx, components/host/HostPlayer.tsx, lib/stores/playerSlice.ts
+- Why It Works: Visual players actively rendering pixels are exempt from browser throttling. Atomic locking safely ignores redundant queue skips from distributed clients.
+
+Prevention:
+- Rule or Pattern: Always use a single player instance for both view and logic. Never rely on hidden/muted iframes for critical lifecycle events.
+- Future Safeguard: Race condition checks (affecting 0 rows) should elegantly exit instead of throwing catastrophic session loss alerts.
+
+Bug:
+- Description: Karaoke track queue failed to auto-advance at the end of a song, looping indefinitely.
+- Location: app/stage/page.tsx, components/host/HostPlayer.tsx
+- Root Cause: Missing interaction with the raw YouTube IFrame API's postMessage protocol (specifically infoDelivery event). The browser heavily throttled the background ReactPlayer so it never fired native onEnded events cleanly.
+
+Fix:
+- Summary: Injected a robust global window.addEventListener('message') to capture YouTube's unthrottled raw 'infoDelivery' packets natively to detect when playerState === 0.
+- Files Changed: app/stage/page.tsx, components/host/HostPlayer.tsx
+- Why It Works: Bypasses the highly throttled background JS polling loops used by wrapper libraries. Reading the direct cross-origin postMessage queue securely guarantees absolute synchronicity with the visual IFrame when a song finishes naturally.
+
+Prevention:
+- Rule or Pattern: When using raw embedded visual iFrames that run heavily in the background, avoid relying on hidden parallel logic players. Instead, hook directly into the visual window's raw network broadcast queue.
+- Future Safeguard: Keep the 'infoDelivery' parser globally available anywhere automated playback skipping is required.
+

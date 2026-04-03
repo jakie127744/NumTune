@@ -74,6 +74,31 @@ export const HostPlayer: React.FC = () => {
         }
     }, [isPlaying]);
 
+    // Ultra-reliable Unthrottled Raw IFrame Event Monitor
+    React.useEffect(() => {
+        if (!currentSong) return;
+        const handleMessage = (e: MessageEvent) => {
+            try {
+                let data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+                const isEndedRaw = data && data.event === 'infoDelivery' && data.info && data.info.playerState === 0;
+                const isEndedWrapped = data && data.event === 'onStateChange' && data.info === 0;
+                
+                if (isEndedRaw || isEndedWrapped) { 
+                    console.log("HostPlayer Raw Iframe ended. Starting intermission...");
+                    const songEndedId = currentSong.id;
+                    useTunrStore.getState().setIsPlaying(false);
+                    setTimeout(() => {
+                        if (useTunrStore.getState().currentSong?.id === songEndedId) {
+                            useTunrStore.getState().playNext();
+                        }
+                    }, 5000);
+                }
+            } catch(error) {}
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, [currentSong?.id]);
+
     if (!currentSong) {
         // ... (Keep existing empty state)
         return (
@@ -109,6 +134,17 @@ export const HostPlayer: React.FC = () => {
                                 {hostMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                             </button>
                             <button onClick={forceReset} className="hover:text-orange-500 transition-colors uppercase">Fix</button>
+                            <button 
+                                onClick={() => {
+                                    const iframe1 = document.getElementById('visual-iframe-host') as HTMLIFrameElement;
+                                    const iframe2 = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
+                                    if (iframe1 && iframe1.contentWindow) iframe1.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [9999, true] }), '*');
+                                    if (iframe2 && iframe2.contentWindow) iframe2.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [9999, true] }), '*');
+                                }} 
+                                className="bg-red-500/20 hover:bg-red-500/50 text-red-400 px-2 rounded font-bold uppercase transition-colors"
+                            >
+                                FFwd
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -208,6 +244,15 @@ export const HostPlayer: React.FC = () => {
                         </button>
                         <button onClick={playNext} className="p-3 text-neutral-400 hover:text-white transition-colors group/skip">
                             <SkipForward className="w-6 h-6 group-hover/skip:translate-x-0.5 transition-transform" />
+                        </button>
+                        <button 
+                            onClick={(e) => {
+                                e.preventDefault();
+                                window.postMessage(JSON.stringify({ event: 'infoDelivery', info: { playerState: 0 } }), '*');
+                            }}
+                            className="ml-2 px-3 py-1 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs tracking-widest uppercase shadow-lg shadow-red-500/20"
+                        >
+                            END
                         </button>
                     </div>
                 </div>

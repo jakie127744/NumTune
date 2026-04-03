@@ -30,13 +30,8 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
         return;
     }
     
-    if (isPlaying && (!stoppedData || stoppedData.length === 0)) {
-         console.error("Stop command affected 0 rows. Session mismatch.");
-         alert("Session Control Lost: You are not the owner of this room (Ghost Mode). \n\nThe system will now reset to a NEW SESSION to fix this.");
-         
-         localStorage.removeItem('tunr_host_room_code');
-         set({ isPlaying: false, currentSong: null, roomCode: "" });
-         window.location.reload(); 
+        if (isPlaying && (!stoppedData || stoppedData.length === 0)) {
+         console.warn("Song already skipped natively by another client. Ignoring to prevent double skip.");
          return;
     }
 

@@ -139,6 +139,40 @@ export default function MainStage() {
   }, [isPlaying, currentSong?.id, hasInteracted]);
   
   const nextSong = queue.length > 0 ? queue[0] : null;
+  const [debugEnded, setDebugEnded] = React.useState(false);
+
+  // Ultra-reliable Unthrottled Raw IFrame Event Monitor
+  React.useEffect(() => {
+     if (!currentSong) return;
+     const handleMessage = (e: MessageEvent) => {
+         try {
+             let data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+             const isEndedRaw = data && data.event === 'infoDelivery' && data.info && data.info.playerState === 0;
+             const isEndedWrapped = data && data.event === 'onStateChange' && data.info === 0;
+             
+             if (isEndedRaw || isEndedWrapped) { 
+                 setDebugEnded(true);
+                 console.log("Raw Iframe ended. Starting 5-sec intermission...");
+                 const songEndedId = currentSong.id;
+                 useTunrStore.getState().setIsPlaying(false);
+                 setTimeout(() => {
+                     setDebugEnded(false);
+                     if (useTunrStore.getState().currentSong?.id === songEndedId) {
+                         useTunrStore.getState().playNext();
+                     }
+                 }, 5000);
+             } else if (data && data.event === 'onError') {
+                 const code = data.info;
+                 if (code === 101 || code === 150) {
+                     setFallbackError("Error: Track restricted. Skipping...");
+                     setTimeout(() => useTunrStore.getState().playNext(), 3000);
+                 }
+             }
+         } catch(error) {}
+     };
+     window.addEventListener('message', handleMessage);
+     return () => window.removeEventListener('message', handleMessage);
+  }, [currentSong?.id]);
 
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0c0811] text-white font-display">
@@ -239,6 +273,15 @@ export default function MainStage() {
                         <div className="bg-red-600/90 text-white px-6 py-3 rounded-full font-bold shadow-2xl backdrop-blur-md flex items-center gap-3">
                              <div className="w-2 h-2 rounded-full bg-white animate-ping" />
                              {fallbackError}
+                        </div>
+                    </div>
+                )}
+                
+                {/* Debug Ended Notification */}
+                {debugEnded && (
+                    <div className="absolute inset-x-0 top-24 flex justify-center z-[200] animate-in fade-in duration-300">
+                        <div className="bg-orange-500 text-white px-8 py-4 rounded-full font-black text-2xl shadow-2xl uppercase tracking-widest border-4 border-white/50">
+                             Raw IFrame Ended - 5s Countdown Started
                         </div>
                     </div>
                 )}
