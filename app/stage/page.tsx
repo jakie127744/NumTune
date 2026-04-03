@@ -8,6 +8,7 @@ import dynamic from 'next/dynamic';
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
 
 import { useTunrStore } from '@/lib/store';
+import { supabase } from '@/lib/supabase';
 
 export default function MainStage() {
   // OPTIMIZED SELECTORS
@@ -25,10 +26,10 @@ export default function MainStage() {
   const setSyncNudge = useTunrStore(s => s.setSyncNudge);
 
   const [hasInteracted, setHasInteracted] = React.useState(false);
-  const [isMuted, setIsMuted] = React.useState(false);
   const [fallbackError, setFallbackError] = React.useState<string | null>(null);
   const [tempCode, setTempCode] = React.useState('');
   const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
+  const [showDebug, setShowDebug] = React.useState(false);
 
   const addLog = (msg: string) => {
     setSyncLogs(prev => [msg, ...prev].slice(0, 5));
@@ -36,55 +37,261 @@ export default function MainStage() {
 
   const lastResetRef = React.useRef(0);
   const logicPlayerRef = React.useRef<any>(null);
+  const hasSyncedRef = React.useRef(false);
+  const lastSyncTimeRef = React.useRef(0);
 
+  React.useEffect(() => {
+     hasSyncedRef.current = false;
+     lastSyncTimeRef.current = 0;
+  }, [currentSong?.id]);
+
+  // ============================================================
+  // TIMESTAMP-BASED SYNC
+  // Instead of polling DB for position, we store:
+  //   - offset (seconds when state last changed)
+  //   - started_at (timestamp when state last changed)
+  //   - is_playing (boolean)
+  // Then compute: correctTime = offset + (now - started_at)
+  // This works even if a Stage joins mid-song.
+  // ============================================================
+  const [debugPos, setDebugPos] = React.useState<number | null>(null);
+  const [debugStatus, setDebugStatus] = React.useState('Initializing...');
+  const [isLocalMuted, setIsLocalMuted] = React.useState(false);
+  const ytPlayerRef = React.useRef<any>(null);
+  const playbackStateRef = React.useRef<{
+    offset: number;
+    startedAt: number; // timestamp ms
+    isPlaying: boolean;
+  }>({ offset: 0, startedAt: 0, isPlaying: false });
+
+  // Compute the correct playback time based on stored timestamp
+  const getCorrectTime = () => {
+    const state = playbackStateRef.current;
+    if (!state.isPlaying) return state.offset;
+    const nudge = useTunrStore.getState().syncNudge || 0;
+    const elapsed = (Date.now() - state.startedAt) / 1000;
+    return state.offset + elapsed + nudge;
+  };
+
+  // Load YouTube IFrame API script once
+  React.useEffect(() => {
+    if ((window as any).YT) return;
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  }, []);
+
+  // Create YT.Player when song changes and user has interacted
+  React.useEffect(() => {
+    if (!hasInteracted || !currentSong?.youtubeId) return;
+    
+    if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch {}
+        ytPlayerRef.current = null;
+    }
+    
+    const createPlayer = () => {
+        const container = document.getElementById('yt-stage-container');
+        if (!container) {
+            setTimeout(createPlayer, 200);
+            return;
+        }
+        
+        try {
+            ytPlayerRef.current = new (window as any).YT.Player('yt-stage-container', {
+                videoId: currentSong.youtubeId,
+                playerVars: {
+                    autoplay: 1,
+                    mute: 0,
+                    controls: 0,
+                    rel: 0,
+                    modestbranding: 1,
+                    playsinline: 1,
+                    origin: window.location.origin,
+                },
+                events: {
+                    onReady: () => {
+                        setDebugStatus('YT Ready ✓');
+                        addLog('YT.Player ready');
+                        // Immediately sync to correct position
+                        syncToCorrectTime();
+                    },
+                    onError: (e: any) => {
+                        setDebugStatus(`YT Error: ${e.data}`);
+                        addLog(`YT Error: ${e.data}`);
+                    }
+                }
+            });
+        } catch (e) {
+            setDebugStatus('YT.Player create failed, retrying...');
+            setTimeout(createPlayer, 500);
+        }
+    };
+    
+    const waitForAPI = () => {
+        if ((window as any).YT && (window as any).YT.Player) {
+            createPlayer();
+        } else {
+            setTimeout(waitForAPI, 200);
+        }
+    };
+    waitForAPI();
+    
+    return () => {
+        if (ytPlayerRef.current) {
+            try { ytPlayerRef.current.destroy(); } catch {}
+            ytPlayerRef.current = null;
+        }
+    };
+  }, [hasInteracted, currentSong?.youtubeId]);
+
+  // Sync YT.Player to the correct computed time
+  const syncToCorrectTime = () => {
+    const player = ytPlayerRef.current;
+    if (!player || typeof player.seekTo !== 'function') return;
+    
+    const correctTime = getCorrectTime();
+    const state = playbackStateRef.current;
+    
+    setDebugPos(Math.floor(correctTime));
+    
+    // Seek to correct position
+    if (correctTime > 1) {
+        player.seekTo(correctTime, true);
+    }
+    
+    // Sync play/pause state
+    if (state.isPlaying) {
+        if (typeof player.playVideo === 'function') player.playVideo();
+    } else {
+        if (typeof player.pauseVideo === 'function') player.pauseVideo();
+    }
+    
+    addLog(`Sync → ${Math.floor(correctTime)}s (${state.isPlaying ? 'PLAY' : 'PAUSE'})`);
+    setDebugStatus(`Synced: ${Math.floor(correctTime)}s`);
+    
+    // Update local store state
+    const storeIsPlaying = useTunrStore.getState().isPlaying;
+    if (state.isPlaying !== storeIsPlaying) {
+        useTunrStore.getState().setLocalIsPlaying(state.isPlaying);
+    }
+  };
+
+  // Fetch playback state from DB and update the ref
+  const fetchPlaybackState = async () => {
+    const queueId = useTunrStore.getState().currentSong?.queueId;
+    if (!queueId) return;
+    
+    try {
+        const { data } = await supabase
+            .from('queue')
+            .select('current_position_seconds, is_playing, last_sync_at')
+            .eq('id', queueId)
+            .single();
+        
+        if (!data) return;
+        
+        const offset = data.current_position_seconds || 0;
+        const startedAt = data.last_sync_at ? new Date(data.last_sync_at).getTime() : Date.now();
+        const isPlayingDB = data.is_playing;
+        
+        playbackStateRef.current = { offset, startedAt, isPlaying: isPlayingDB };
+        
+        addLog(`DB: offset=${offset}s, playing=${isPlayingDB}`);
+        
+        // Immediately sync the player
+        syncToCorrectTime();
+    } catch (e) {
+        console.error('Fetch playback state error:', e);
+    }
+  };
+
+  // INITIAL LOAD: Fetch state from DB when Stage mounts
+  React.useEffect(() => {
+    if (!hasInteracted || !currentSong?.queueId) return;
+    
+    // Fetch immediately
+    fetchPlaybackState();
+    
+    // Also refetch when postgres_changes fires (handled by subscribeToQueue → fetchQueue)
+    // But we need our OWN listener for timestamp updates (queue changes don't trigger re-render for timestamp fields)
+    const channel = supabase.channel(`stage-sync:${currentSong.queueId}`);
+    channel
+      .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'queue',
+          filter: `id=eq.${currentSong.queueId}`
+      }, (payload) => {
+          const newData = payload.new as any;
+          const offset = newData.current_position_seconds || 0;
+          const startedAt = newData.last_sync_at ? new Date(newData.last_sync_at).getTime() : Date.now();
+          const isPlayingDB = newData.is_playing;
+          
+          playbackStateRef.current = { offset, startedAt, isPlaying: isPlayingDB };
+          addLog(`RT: offset=${offset}s, playing=${isPlayingDB}`);
+
+          // Calculate Latency/Offset Delay
+          if (newData.last_sync_at) {
+              const serverTime = new Date(newData.last_sync_at).getTime();
+              const now = Date.now();
+              const latency = now - serverTime;
+              // Update store so the UI Sync Health monitor shows it
+              useTunrStore.setState({ syncLatency: latency });
+          }
+
+          syncToCorrectTime();
+      })
+      .subscribe();
+    
+    return () => {
+        supabase.removeChannel(channel);
+    };
+  }, [hasInteracted, currentSong?.queueId]);
+
+  // DRIFT CORRECTION: Every 2 seconds, check if YT.Player drifted and re-seek if needed
+  React.useEffect(() => {
+    if (!hasInteracted || !currentSong?.queueId) return;
+    
+    const driftInterval = setInterval(() => {
+        const player = ytPlayerRef.current;
+        if (!player || typeof player.getCurrentTime !== 'function') return;
+        if (!playbackStateRef.current.isPlaying) return;
+        
+        const correctTime = getCorrectTime();
+        const playerTime = player.getCurrentTime();
+        const drift = Math.abs(playerTime - correctTime);
+        
+        setDebugPos(Math.floor(correctTime));
+        
+        if (drift > 0.8) {
+            player.seekTo(correctTime, true);
+            addLog(`Drift fix: ${drift.toFixed(1)}s → ${Math.floor(correctTime)}s`);
+            setDebugStatus(`Drift corrected: ${Math.floor(correctTime)}s`);
+        } else {
+            setDebugStatus(`In sync (drift: ${drift.toFixed(1)}s)`);
+        }
+    }, 2000);
+    
+    return () => clearInterval(driftInterval);
+  }, [hasInteracted, currentSong?.queueId]);
+
+  // Subscribe to queue for song changes (skip/next)
   React.useEffect(() => {
     fetchQueue();
     subscribeToQueue();
-
-    // ELITE SYNC: Direct Broadcast Monitor
-    const unsubscribe = useTunrStore.getState().onSync((seconds: number, playing?: boolean) => {
-        if (!hasInteracted) return;
-        
-        const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
-        const currentIsPlaying = useTunrStore.getState().isPlaying;
-        const currentNudge = useTunrStore.getState().syncNudge;
-        const latencySec = (useTunrStore.getState().syncLatency || 0) / 1000;
-        
-        // Compensate for network travel time + user's manual nudge (Phase Alignment)
-        const realTime = seconds + latencySec + (currentNudge / 1000); 
-
-        // 1. Instant Play/Pause Sync & State Correction
-        if (playing !== undefined) {
-            if (playing !== currentIsPlaying) {
-                addLog(`State Sync: ${playing ? 'PLAY' : 'PAUSE'}`);
-                setIsPlaying(playing);
-            }
-            
-            // Re-force IFrame state precisely on every pulse to prevent "Zombie" players
-            if (iframe && iframe.contentWindow) {
-                const command = playing ? 'playVideo' : 'pauseVideo';
-                iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: command, args: [] }), '*');
-            }
-        }
-
-        // 2. High-Precision Snap (100ms tolerance)
-        const player = logicPlayerRef.current;
-        if (player && typeof player.getCurrentTime === 'function' && typeof player.seekTo === 'function') {
-            const currentPos = player.getCurrentTime();
-            const drift = Math.abs(currentPos - realTime);
-
-            if (drift > 0.1 || currentPos < 0.2) {
-                addLog(`SNAP: ${(drift * 1000).toFixed(0)}ms drift`);
-                player.seekTo(realTime);
-                if (iframe && iframe.contentWindow) {
-                    iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [realTime, true] }), '*');
-                }
-            }
-        }
-    });
-
-    return () => unsubscribe();
-  }, [roomCode, hasInteracted]);
+  }, [roomCode]);
+  
+  // Local Mute Control
+  React.useEffect(() => {
+     const player = ytPlayerRef.current;
+     if (!player || typeof player.mute !== 'function') return;
+     if (isLocalMuted) {
+         player.mute();
+     } else {
+         player.unMute();
+     }
+  }, [isLocalMuted]);
 
 
   // Sync Reset Trigger (Hard Reset for skipping/restarting)
@@ -277,70 +484,25 @@ export default function MainStage() {
                     </div>
                 )}
                 
-                {/* Debug Ended Notification */}
-                {debugEnded && (
-                    <div className="absolute inset-x-0 top-24 flex justify-center z-[200] animate-in fade-in duration-300">
-                        <div className="bg-orange-500 text-white px-8 py-4 rounded-full font-black text-2xl shadow-2xl uppercase tracking-widest border-4 border-white/50">
-                             Raw IFrame Ended - 5s Countdown Started
-                        </div>
+                {/* LIVE SYNC DIAGNOSTIC — Only show if debug enabled */}
+                {showDebug && (
+                    <div className="absolute top-4 right-4 z-[200] bg-black/90 text-white p-4 rounded-xl font-mono text-sm space-y-1 min-w-[250px] border border-white/20">
+                        <div className="text-xs font-bold text-primary uppercase tracking-widest mb-2">Sync Diagnostic</div>
+                        <div>DB Pos: <span className="text-yellow-400 font-bold">{debugPos !== null ? `${debugPos}s` : 'loading...'}</span></div>
+                        <div>Status: <span className="text-green-400 font-bold">{debugStatus}</span></div>
+                        <div className="text-xs text-white/50 mt-2">Logs:</div>
+                        {syncLogs.map((log, i) => (
+                            <div key={i} className="text-xs text-white/70">{log}</div>
+                        ))}
                     </div>
                 )}
 
-                {/* Hybrid Stage Player: IFrame for Visuals, ReactPlayer for Events */}
+                {/* STAGE = PURE VISUAL PROJECTION via YT.Player API */}
                 {currentSong?.youtubeId && hasInteracted && (
-                    <div className="relative w-full h-full">
-                        {/* Visual Layer: Raw IFrame (Highly Reliable) */}
-                        <iframe 
-                            id="visual-iframe-stage"
-                            key={`visual-${currentSong.youtubeId}-${hasInteracted}-${isMuted}`}
-                            src={`https://www.youtube.com/embed/${currentSong.youtubeId}?autoplay=1&mute=${isMuted ? 1 : 0}&controls=0&enablejsapi=1&rel=0&modestbranding=1&start=${Math.floor(currentSong.currentPosition || 0)}&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                            className="absolute inset-0 w-full h-full border-0 pointer-events-none z-10"
-                            allow="autoplay; encrypted-media; picture-in-picture"
-                            allowFullScreen
-                        />
+                    <div className="relative w-full h-full" key={`stage-${currentSong.youtubeId}`}>
+                        {/* YT.Player mounts here — the API replaces this div with an iframe it controls */}
+                        <div id="yt-stage-container" className="absolute inset-0 w-full h-full z-10" style={{ pointerEvents: 'none' }} />
 
-                        {/* Logic Layer: Hidden ReactPlayer (Handles Auto-Next) - MUST BE MUTED TO PREVENT ECHO */}
-                        <div className="opacity-0 pointer-events-none absolute -top-10 -left-10 w-1 h-1 overflow-hidden">
-                            <ReactPlayer 
-                                ref={logicPlayerRef}
-                                key={`logic-${currentSong.youtubeId}`}
-                                url={`https://www.youtube.com/watch?v=${currentSong.youtubeId}`}
-                                playing={Boolean(isPlaying)}
-                                muted={true}
-                                onError={(e: any) => {
-                                    console.error("Stage Logic Player Error:", e);
-                                    const errorCode = typeof e === 'number' ? e : e?.data || e?.code;
-                                    
-                                    if (errorCode === 101 || errorCode === 150) {
-                                         setFallbackError("Error: Track restricted from embedding. Skipping in 3 seconds...");
-                                         setTimeout(() => {
-                                              setFallbackError(null);
-                                              useTunrStore.getState().playNext();
-                                         }, 3000);
-                                    } else if (e && e.name === 'AbortError' && !isPlaying) {
-                                        console.warn("Stage AbortError Recovery");
-                                        const iframe = document.getElementById('visual-iframe-stage') as HTMLIFrameElement;
-                                        if (iframe && iframe.contentWindow) {
-                                            iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
-                                        }
-                                    }
-                                }}
-                                onEnded={() => {
-                                    console.log("Track ended. Starting 5-second intermission...");
-                                    const songEndedId = currentSong.id;
-                                    
-                                    useTunrStore.getState().setIsPlaying(false);
-                                    
-                                    setTimeout(() => {
-                                        if (useTunrStore.getState().currentSong?.id === songEndedId) {
-                                            useTunrStore.getState().playNext();
-                                        }
-                                    }, 5000);
-                                }}
-                            />
-                        </div>
-
-                        
                         {/* Security Curtain & Branding: Shows when paused/stopped */}
                         {!isPlaying && (
                             <div className="absolute inset-0 z-30 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none p-10 text-center space-y-8 animate-in fade-in duration-1000">
@@ -350,7 +512,7 @@ export default function MainStage() {
                                         Off Key Karaoke
                                      </h1>
                                      <p className="text-xl md:text-3xl font-medium text-white/50 tracking-widest uppercase mt-4">
-                                        Sing anyway, because fun isn't always in key
+                                        Sing anyway, because fun isn&apos;t always in key
                                      </p>
                                 </div>
                                 
@@ -413,78 +575,96 @@ export default function MainStage() {
         </div>
       </footer>
       
-      {/* Sync Nudge & Health Controls */}
-      <div className="absolute top-28 right-10 flex flex-col items-end gap-3 z-30 group/nudge">
-          {/* Main Monitor */}
-          <div className="flex flex-col items-end gap-1">
-              <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-inner">
-                <div className="flex items-center gap-1.5">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-[10px] uppercase tracking-[0.2em] text-white/50 font-black">Sync Health</span>
+      {/* Sync Nudge & Health Controls (Technical - Only show if debug enabled) */}
+      {showDebug && (
+          <div className="absolute top-28 right-10 flex flex-col items-end gap-3 z-30 group/nudge">
+              {/* Main Monitor */}
+              <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2 bg-white/5 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-inner">
+                    <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-white/50 font-black">Sync Health</span>
+                    </div>
+                    <div className="w-px h-3 bg-white/10 mx-1" />
+                    <span className={`text-[10px] font-bold ${syncLatency > 300 ? 'text-amber-500' : 'text-green-500/80'}`}>
+                        {syncLatency}ms delay
+                    </span>
+                  </div>
+              </div>
+
+              {/* Manual Phase Alignment (Nudge) */}
+              <div className="flex flex-col items-end gap-2 p-4 rounded-[28px] bg-black/40 backdrop-blur-xl border border-white/5 opacity-0 group-hover/nudge:opacity-100 transition-all duration-300 translate-x-4 group-hover/nudge:translate-x-0">
+                <span className="text-[8px] font-black uppercase tracking-widest text-primary/60 mb-1">Phase Alignment</span>
+                <div className="flex items-center gap-3">
+                    <button 
+                      onClick={() => setSyncNudge(syncNudge - 50)}
+                      className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-90"
+                    >
+                      -
+                    </button>
+                    <div className="flex flex-col items-center min-w-[60px]">
+                      <span className="text-lg font-black font-mono text-primary leading-none">{syncNudge > 0 ? `+${syncNudge}` : syncNudge}</span>
+                      <span className="text-[8px] uppercase font-bold text-white/20">ms</span>
+                    </div>
+                    <button 
+                      onClick={() => setSyncNudge(syncNudge + 50)}
+                      className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-90"
+                    >
+                      +
+                    </button>
                 </div>
-                <div className="w-px h-3 bg-white/10 mx-1" />
-                <span className={`text-[10px] font-bold ${syncLatency > 300 ? 'text-amber-500' : 'text-green-500/80'}`}>
-                    {syncLatency}ms delay
-                 </span>
+                <button 
+                    onClick={() => setSyncNudge(0)}
+                    className="text-[8px] uppercase font-bold text-white/30 hover:text-white/60 transition-colors mt-1"
+                >
+                  Reset Nudge
+                </button>
               </div>
           </div>
+      )}
 
-          {/* Mute Control */}
-          <div className="flex flex-col items-end gap-2 pr-2">
+      {/* Projection & Mute Label (Always visible/useful) */}
+      <div className="absolute top-28 right-10 flex flex-col items-end gap-2 pr-2 z-30 pointer-events-auto">
              <button 
-                 onClick={() => setIsMuted(!isMuted)}
-                 className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all shadow-xl active:scale-90"
+                onClick={() => setIsLocalMuted(!isLocalMuted)}
+                title={isLocalMuted ? "Unmute Stage" : "Mute Stage"}
+                className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border",
+                    isLocalMuted 
+                        ? "bg-red-500/20 text-red-500 border-red-500/30" 
+                        : "bg-white/5 text-primary border-white/10 hover:bg-white/10"
+                )}
              >
-                 {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4" />}
+                 {isLocalMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
              </button>
-             <span className="text-[8px] font-black uppercase tracking-widest text-primary/60">Guest Device</span>
-          </div>
-
-          {/* Manual Phase Alignment (Nudge) */}
-          <div className="flex flex-col items-end gap-2 p-4 rounded-[28px] bg-black/40 backdrop-blur-xl border border-white/5 opacity-0 group-hover/nudge:opacity-100 transition-all duration-300 translate-x-4 group-hover/nudge:translate-x-0">
-             <span className="text-[8px] font-black uppercase tracking-widest text-primary/60 mb-1">Phase Alignment</span>
-             <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setSyncNudge(syncNudge - 50)}
-                  className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-90"
-                >
-                  -
-                </button>
-                <div className="flex flex-col items-center min-w-[60px]">
-                   <span className="text-lg font-black font-mono text-primary leading-none">{syncNudge > 0 ? `+${syncNudge}` : syncNudge}</span>
-                   <span className="text-[8px] uppercase font-bold text-white/20">ms</span>
-                </div>
-                <button 
-                  onClick={() => setSyncNudge(syncNudge + 50)}
-                  className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center text-white transition-all active:scale-90"
-                >
-                  +
-                </button>
-             </div>
-             <button 
-                onClick={() => setSyncNudge(0)}
-                className="text-[8px] uppercase font-bold text-white/30 hover:text-white/60 transition-colors mt-1"
-             >
-               Reset Nudge
-             </button>
-          </div>
+             <span className="text-[8px] font-black uppercase tracking-widest text-primary/60">
+                 Projection {isLocalMuted ? '(MUTED)' : ''}
+             </span>
       </div>
 
       {/* Connection Indicator removed as it's now in the header */}
       
-      {/* Sync Debug Console */}
-      <div className="absolute bottom-28 left-10 z-[100] space-y-1 pointer-events-none">
-          {syncLogs.map((log, i) => (
-             <motion.div 
-               key={`${log}-${i}`}
-               initial={{ opacity: 0, x: -10 }}
-               animate={{ opacity: 1 - (i * 0.2), x: 0 }}
-               className="bg-black/60 backdrop-blur-md px-3 py-1 rounded border border-white/5 text-[10px] font-mono text-primary/80"
-             >
-                {log}
-             </motion.div>
-          ))}
-      </div>
+      {/* Sync Debug Console (Togglable) */}
+      {showDebug && (
+          <div className="absolute bottom-28 left-10 z-[100] space-y-1 pointer-events-none">
+              {syncLogs.map((log, i) => (
+                 <motion.div 
+                   key={`${log}-${i}`}
+                   initial={{ opacity: 0, x: -10 }}
+                   animate={{ opacity: 1 - (i * 0.2), x: 0 }}
+                   className="bg-black/60 backdrop-blur-md px-3 py-1 rounded border border-white/5 text-[10px] font-mono text-primary/80"
+                 >
+                    {log}
+                 </motion.div>
+              ))}
+          </div>
+      )}
+
+      {/* Hidden Debug Toggle Area (Bottom Left) */}
+      <div 
+        className="absolute bottom-0 left-0 w-20 h-20 z-[200] cursor-default"
+        onDoubleClick={() => setShowDebug(!showDebug)}
+      />
     </div>
   );
 }

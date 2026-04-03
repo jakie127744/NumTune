@@ -121,7 +121,9 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
            // Only preserve reference if key playback state matches.
            // If DB has updated isPlaying, we must use the new object (current).
            if (state.currentSong.isPlaying === current.isPlaying) {
-               finalCurrent = state.currentSong;
+               // Preserve the reference BUT always pull the latest position from DB
+               // so that newly-opened Stage clients get the real host timestamp.
+               finalCurrent = { ...state.currentSong, currentPosition: current.currentPosition };
            }
       }
 

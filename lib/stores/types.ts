@@ -17,12 +17,15 @@ export interface Song {
 // Slice Interfaces
 export interface PlayerSlice {
   isPlaying: boolean;
+  isHost: boolean;
   currentSong: Song | null;
   volume: number;
   syncLatency: number;
   syncNudge: number;
+  hostAudioMuted: boolean;
 
   setIsPlaying: (active: boolean) => void;
+  setLocalIsPlaying: (active: boolean) => void;
   togglePlay: () => void;
   playNext: () => Promise<void>;
   playPrevious: () => Promise<void>;
@@ -32,6 +35,7 @@ export interface PlayerSlice {
   forceReset: () => Promise<void>;
   setVolume: (val: number) => void;
   setSyncNudge: (val: number) => void;
+  setHostAudioMuted: (muted: boolean) => void;
 }
 
 export interface QueueSlice {
@@ -52,7 +56,6 @@ export interface QueueSlice {
 
 export interface UISlice {
     // Placeholder for future UI state (modals, tabs)
-    // Currently store.ts mixed UI into top level, but for now we'll keep strict separation
 }
 
 export type TunrStore = PlayerSlice & QueueSlice & UISlice;

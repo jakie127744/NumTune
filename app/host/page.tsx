@@ -45,6 +45,7 @@ export default function HostDashboard() {
 
   React.useEffect(() => {
     const init = async () => {
+        useTunrStore.setState({ isHost: true });
         await useTunrStore.getState().ensureSession();
         
         const { data: { session } } = await supabase.auth.getSession();

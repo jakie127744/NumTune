@@ -4,10 +4,12 @@ import { supabase } from '../supabase';
 
 export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (set, get) => ({
   isPlaying: false,
+  isHost: false,
   currentSong: null,
   volume: 80,
   syncLatency: 0,
   syncNudge: 0,
+  hostAudioMuted: false,
 
   playNext: async () => {
     await get().ensureSession();
@@ -26,11 +28,10 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
         console.error("Error stopping playback:", stopError);
         alert(`Next Song Failed (Stop): ${stopError.message}`);
         set({ isPlaying: false });
-        // We do strictly set playing false here to reflect "stop"
         return;
     }
     
-        if (isPlaying && (!stoppedData || stoppedData.length === 0)) {
+    if (isPlaying && (!stoppedData || stoppedData.length === 0)) {
          console.warn("Song already skipped natively by another client. Ignoring to prevent double skip.");
          return;
     }
@@ -64,9 +65,15 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
         }
 
         console.log("Advancing to DB-Next:", next.songs);
+        // Write timestamp-based playback state: song starts from 0, now
         const { data: startedData, error: startError } = await supabase
             .from('queue')
-            .update({ status: 'playing', is_playing: true })
+            .update({ 
+                status: 'playing', 
+                is_playing: true,
+                current_position_seconds: 0,
+                last_sync_at: new Date().toISOString()
+            })
             .eq('id', next.id)
             .select();
         
@@ -87,7 +94,7 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
   },
 
   playPrevious: async () => {
-    await get().ensureSession(); // AUTH GUARD
+    await get().ensureSession();
     const { roomCode, currentSong } = get();
     if (!roomCode) return;
 
@@ -109,7 +116,12 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
     if (lastSongs && lastSongs.length > 0) {
         const { error } = await supabase
             .from('queue')
-            .update({ status: 'playing', is_playing: true, current_position_seconds: 0 })
+            .update({ 
+                status: 'playing', 
+                is_playing: true, 
+                current_position_seconds: 0,
+                last_sync_at: new Date().toISOString()
+            })
             .eq('id', lastSongs[0].id);
             
         if (error) {
@@ -121,70 +133,49 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
     get().fetchQueue();
   },
 
-  togglePlay: async () => {
-    console.log("togglePlay called. Current:", get().isPlaying);
-    await get().ensureSession(); // AUTH GUARD
-    const { currentSong, isPlaying } = get();
-    const newStatus = !isPlaying;
-    console.log("Setting isPlaying to:", newStatus);
-    
-    // Optimistic Update
+  setLocalIsPlaying: (active: boolean) => {
     set(state => ({
-        isPlaying: newStatus,
-        currentSong: state.currentSong ? { ...state.currentSong, isPlaying: newStatus } : null
+        isPlaying: active,
+        currentSong: state.currentSong ? { ...state.currentSong, isPlaying: active } : null
     }));
+  },
 
-    if (currentSong?.queueId) {
-        const { error } = await supabase.from('queue').update({ is_playing: newStatus }).eq('id', currentSong.queueId);
-        if (error) {
-            console.error("Toggle Play Update Failed:", error);
-            alert(`Pause/Play Failed: ${error.message}`);
-            // Revert on error
-            set({ isPlaying: isPlaying });
-        } else {
-            console.log("DB Update Success");
-        }
-    }
+  togglePlay: () => {
+      const { isPlaying } = get();
+      get().setIsPlaying(!isPlaying);
   },
 
   setIsPlaying: async (active: boolean) => {
-      await get().ensureSession(); // AUTH GUARD
-      const { currentSong, isPlaying } = get();
-      if (active === isPlaying) return; 
+      // Local state update always happens immediately for UI responsiveness
+      get().setLocalIsPlaying(active);
 
-      set({ isPlaying: active });
+      // PERSISTENT DB Checkpoint: Only Authority (Host) writes to DB
+      if (!get().isHost) return;
+
+      await get().ensureSession();
+      const { currentSong } = get();
       if (currentSong?.queueId) {
-          const { error } = await supabase.from('queue').update({ is_playing: active }).eq('id', currentSong.queueId);
-          if (error) {
-             console.error("Set Play Update Failed:", error);
-             alert(`Playback Warning: Failed to sync (${error.message})`);
-             // Revert
-             set({ isPlaying: isPlaying });
-          }
+          const elapsed = (window as any).__hostElapsed || 0;
+          await supabase
+              .from('queue')
+              .update({ 
+                  is_playing: active,
+                  current_position_seconds: Math.floor(elapsed),
+                  last_sync_at: new Date().toISOString()
+              })
+              .eq('id', currentSong.queueId);
       }
   },
 
   syncPosition: async (seconds: number) => {
-    const { currentSong } = get();
-    if (currentSong?.queueId) {
-        // Background update does not need rigid awaiting, but errors might happen silently
-        supabase
-            .from('queue')
-            .update({ 
-                current_position_seconds: seconds,
-                last_sync_at: new Date().toISOString()
-            })
-            .eq('id', currentSong.queueId)
-            .then(); 
-            
-        get().broadcastSync(seconds);
-    }
+    // Store elapsed on window for setIsPlaying to read
+    (window as any).__hostElapsed = seconds;
+    get().broadcastSync(seconds);
   },
 
   broadcastSync: (seconds: number) => {
     const { isPlaying } = get();
     const channel = (window as any)._activeChannel;
-    // 1. Send to Network
     if (channel && channel.state === 'joined') {
         channel.send({
             type: 'broadcast',
@@ -192,10 +183,6 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
             payload: { seconds, playing: isPlaying, timestamp: Date.now() }
         });
     }
-
-    // 2. Loopback Local (Zero-Latency)
-    // We manually trigger this to ensure the Host UI (local) updates instantly 
-    // without waiting for the network round-trip.
     window.dispatchEvent(new CustomEvent('tunr:sync', { 
         detail: { seconds, playing: isPlaying, timestamp: Date.now() } 
     }));
@@ -217,7 +204,7 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
   },
 
   forceReset: async () => {
-    await get().ensureSession(); // AUTH GUARD
+    await get().ensureSession();
     const { currentSong } = get();
     if (currentSong?.queueId) {
         const { data: current } = await supabase.from('queue').select('reset_trigger_count').eq('id', currentSong.queueId).single();
@@ -228,4 +215,5 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
 
   setVolume: (val: number) => set({ volume: val }),
   setSyncNudge: (val: number) => set({ syncNudge: val }),
+  setHostAudioMuted: (muted: boolean) => set({ hostAudioMuted: muted }),
 });
