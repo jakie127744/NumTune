@@ -101,7 +101,8 @@ export default function SongbookPage() {
           "Sing King Karaoke",
           "Karaokey TV", 
           "Pinoy Videoke Tambayan",
-          "Mibalmz Karaoke"
+          "Mibalmz Karaoke",
+          "KaraOcraze"
       ];
       
       // If "Popular" or generic search, pick random. Otherwise, try to be smart or just search universally.

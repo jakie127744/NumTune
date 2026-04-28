@@ -150,3 +150,22 @@ Prevention:
 - Rule or Pattern: For new apps, prefer social OAuth over email/password — it eliminates email confirmation friction and broken SMTP configs.
 - Future Safeguard: Always create an explicit `/auth/callback` route when using Supabase OAuth. The redirect URL must be whitelisted in both Supabase Dashboard → Auth → URL Configuration AND Google Cloud Console → OAuth 2.0 → Authorized Redirect URIs.
 
+---
+
+Bug:
+
+- Description: Auth callback redirecting to `localhost:3000/host` instead of the production URL.
+- Location: `app/auth/callback/route.ts`
+- Root Cause: Used `new URL(request.url).origin` which can resolve to the internal server address (localhost:3000) in proxy environments like Vercel, rather than the public-facing domain.
+
+Fix:
+
+- Summary: Implemented header-based origin detection.
+- Files Changed: `app/auth/callback/route.ts`
+- Why It Works: By reading `request.headers.get('host')` and `x-forwarded-proto`, we can reconstruct the exact URL the user is actually visiting, ensuring redirects point back to the correct production domain.
+
+Prevention:
+
+- Rule or Pattern: In server-side redirects (Next.js Edge/Node routes), always determine the origin using headers (`host` and `x-forwarded-proto`) rather than relying on the request's internal URL object when behind a proxy.
+- Future Safeguard: Use a utility function for robust origin detection across all server-side redirect logic.
+

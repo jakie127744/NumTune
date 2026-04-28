@@ -1,9 +1,30 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Mic2, Monitor, Music, Smartphone } from 'lucide-react';
-
-export const dynamic = 'force-dynamic';
+import { AuthModal } from '@/components/auth/AuthModal';
+import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && !session.user.is_anonymous) {
+        // If already logged in, auto-redirect to host
+        router.push('/host');
+      } else {
+        // Otherwise, auto-open the login modal as requested
+        setIsAuthModalOpen(true);
+      }
+    };
+    checkAuth();
+  }, [router]);
+
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex flex-col items-center justify-center p-6 font-display selection:bg-primary/30">
       
@@ -22,7 +43,10 @@ export default function Home() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           
-          <Link href="/host" className="group relative p-6 bg-neutral-900/50 hover:bg-neutral-900 border border-white/5 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-violet-500/50">
+          <button 
+            onClick={() => setIsAuthModalOpen(true)}
+            className="group relative p-6 bg-neutral-900/50 hover:bg-neutral-900 border border-white/5 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-violet-500/50 text-left"
+          >
             <div className="absolute top-4 right-4 opacity-50 group-hover:opacity-100 transition-opacity">
                 <Music className="w-6 h-6 text-violet-400" />
             </div>
@@ -31,7 +55,7 @@ export default function Home() {
                 <p className="text-sm text-neutral-400">Control Dashboard</p>
             </div>
             <div className="absolute inset-0 bg-violet-500/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-          </Link>
+          </button>
 
           <Link href="/stage" className="group relative p-6 bg-neutral-900/50 hover:bg-neutral-900 border border-white/5 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-2xl hover:border-blue-500/50">
              <div className="absolute top-4 right-4 opacity-50 group-hover:opacity-100 transition-opacity">
@@ -81,6 +105,11 @@ export default function Home() {
             </div>
         </div>
       </div>
+
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+      />
     </div>
   );
 }

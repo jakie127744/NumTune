@@ -2,8 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-    const { searchParams, origin } = new URL(request.url);
+    const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
+    
+    // Get the actual host and protocol from headers (crucial for Vercel/proxies)
+    const host = request.headers.get('host') || 'offkeykaraoke.vercel.app';
+    const protocol = request.headers.get('x-forwarded-proto') || 'https';
+    const origin = `${protocol}://${host}`;
 
     if (code) {
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;

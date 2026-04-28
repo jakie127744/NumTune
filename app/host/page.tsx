@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { 
-  Users, Monitor, QrCode, Music, Clock
+  Users, Monitor, QrCode, Music, Clock, Copy, Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTunrStore } from '@/lib/store';
@@ -32,6 +32,7 @@ export default function HostDashboard() {
   
   const [activeTab, setActiveTab] = useState<'queue' | 'songbook' | 'requests' | 'users'>('queue');
   const [showQR, setShowQR] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   // Custom Room Code State
   const [isEditingCode, setIsEditingCode] = useState(false);
@@ -42,6 +43,12 @@ export default function HostDashboard() {
   const [lookupNumber, setLookupNumber] = useState('');
   const [foundSong, setFoundSong] = useState<any>(null);
   const [user, setUser] = useState<any>(null);
+
+  const handleCopyCode = (code: string) => {
+      navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+  };
 
   React.useEffect(() => {
     const init = async () => {
@@ -176,21 +183,33 @@ export default function HostDashboard() {
                    />
                </div>
            ) : (
-               <button 
-                  onClick={() => { setTempRoomCode(roomCode); setIsEditingCode(true); }}
-                  className="flex items-center gap-3 bg-violet-600/10 border-2 border-violet-500/20 px-4 py-1.5 rounded-2xl shadow-lg ring-1 ring-violet-500/20 group hover:bg-violet-600/20 hover:border-violet-500/40 transition-all cursor-text"
-               >
-                   <span className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em]">Code</span>
-                   <span className="text-xl font-black text-white tracking-widest">{roomCode}</span>
-               </button>
+               <div className="flex items-center gap-1 group">
+                    <button 
+                        onClick={() => { setTempRoomCode(roomCode); setIsEditingCode(true); }}
+                        className="flex items-center gap-3 bg-violet-600/10 border-2 border-violet-500/20 px-4 py-1.5 rounded-2xl shadow-lg ring-1 ring-violet-500/20 hover:bg-violet-600/20 hover:border-violet-500/40 transition-all cursor-text"
+                    >
+                        <span className="text-[10px] text-violet-400 uppercase font-black tracking-[0.2em]">Code</span>
+                        <span className="text-xl font-black text-white tracking-widest">{roomCode}</span>
+                    </button>
+                    <button 
+                        onClick={() => handleCopyCode(roomCode)}
+                        className="p-2 rounded-xl hover:bg-white/5 text-neutral-500 hover:text-violet-400 transition-all"
+                        title="Copy Room Code"
+                    >
+                        {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+               </div>
            )}
 
             <button 
-                 onClick={() => window.open('/stage', 'OffKeyStage', 'width=1920,height=1080')}
+                 onClick={() => {
+                    handleCopyCode(roomCode);
+                    window.open('/stage', 'OffKeyStage', 'width=1920,height=1080');
+                 }}
                  className="hidden md:flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-medium transition-all group"
             >
                 <Monitor className="w-4 h-4 text-violet-400" />
-                <span className="group-hover:text-white transition-colors">Stage Screen</span>
+                <span className="group-hover:text-white transition-colors">{copied ? "Copied & Opening..." : "Stage Screen"}</span>
             </button>
         </div>
       </header>
