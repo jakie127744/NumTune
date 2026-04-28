@@ -47,6 +47,9 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
       }
 
       set({ roomCode: code });
+      if (typeof window !== 'undefined') {
+          localStorage.setItem('tunr_host_room_code', code);
+      }
       return code;
     } catch (e) {
       console.error("Room generation logic error:", e);
@@ -54,7 +57,13 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
     }
   },
 
-  setRoomCode: (code: string) => set({ roomCode: code.toUpperCase() }),
+  setRoomCode: (code: string) => {
+    const upperCode = code.toUpperCase();
+    set({ roomCode: upperCode });
+    if (typeof window !== 'undefined') {
+        localStorage.setItem('tunr_host_room_code', upperCode);
+    }
+  },
 
   fetchQueue: async () => {
     const { roomCode } = get();

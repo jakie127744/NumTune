@@ -63,7 +63,7 @@ export default function HostDashboard() {
         const savedCode = localStorage.getItem('tunr_host_room_code');
         if (savedCode) {
             setRoomCode(savedCode);
-        } else if (!roomCode) {
+        } else if (!useTunrStore.getState().roomCode) {
             generateRoomCode();
         }
     };
