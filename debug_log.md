@@ -102,6 +102,30 @@ Prevention:
 - Rule or Pattern: Always implement active fallback mechanisms on critical UI failures where user interaction is physically impossible (remote display monitors).
 - Future Safeguard: Add fallback handlers with timeout checks for stream components natively.
 
+---
+
+Bug:
+
+- Description: Vercel build failure due to missing type declarations for 'yt-search' and a TypeScript error in SongbookPanel.tsx.
+- Location: `app/api/yt-search/route.ts`, `components/host/SongbookPanel.tsx`
+- Root Cause: 
+  1. The `yt-search` package was missing its corresponding `@types/yt-search` devDependency.
+  2. Accessing `video.snippet.thumbnails.medium.url` in `SongbookPanel.tsx` without checking for undefined (as `medium` is optional in the interface).
+
+Fix:
+
+- Summary: Installed missing types and implemented optional chaining for thumbnail access.
+- Files Changed: `package.json`, `components/host/SongbookPanel.tsx`
+- Why It Works:
+  1. Installing `@types/yt-search` provides the necessary TypeScript declarations for the module, resolving the "implicitly has an 'any' type" error.
+  2. Adding optional chaining `medium?.url` and a fallback to `high.url` ensures the code safely handles cases where a medium-sized thumbnail is not provided by the API.
+
+Prevention:
+
+- Rule or Pattern: Always check for and install `@types/` packages for third-party libraries when using TypeScript.
+- Future Safeguard: Enable strict null checks in `tsconfig.json` (already enabled) and use optional chaining/fallbacks for any nested properties marked as optional in interfaces.
+
+---
 
 Bug:
 - Description: Song track looping indefinitely and not advancing to next queue item after ending.
@@ -116,6 +140,8 @@ Fix:
 Prevention:
 - Rule or Pattern: Always use a single player instance for both view and logic. Never rely on hidden/muted iframes for critical lifecycle events.
 - Future Safeguard: Race condition checks (affecting 0 rows) should elegantly exit instead of throwing catastrophic session loss alerts.
+
+---
 
 Bug:
 - Description: Karaoke track queue failed to auto-advance at the end of a song, looping indefinitely.
@@ -168,4 +194,3 @@ Prevention:
 
 - Rule or Pattern: In server-side redirects (Next.js Edge/Node routes), always determine the origin using headers (`host` and `x-forwarded-proto`) rather than relying on the request's internal URL object when behind a proxy.
 - Future Safeguard: Use a utility function for robust origin detection across all server-side redirect logic.
-

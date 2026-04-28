@@ -402,7 +402,7 @@ export const SongbookPanel: React.FC = () => {
                         {searchResults.map((video) => (
                             <div key={video.id} className="flex flex-col gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
                                 <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-                                    <img src={video.snippet.thumbnails.medium.url} className="w-full h-full object-cover opacity-80" />
+                                    <img src={video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.high.url} className="w-full h-full object-cover opacity-80" />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="font-bold text-sm line-clamp-1" dangerouslySetInnerHTML={{ __html: video.snippet.title }} />
