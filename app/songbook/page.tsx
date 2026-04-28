@@ -41,9 +41,20 @@ export default function SongbookPage() {
 
   // Load Library & Default Recommendations on Mount
   useEffect(() => {
-    fetchLibrary();
-    // Start with a generic search effectively
-    performSearch("Popular Karaoke Songs");
+    const init = async () => {
+        // Ensure store knows we are host
+        useTunrStore.setState({ isHost: true });
+        
+        // Recover Room Code from Host session
+        const savedCode = localStorage.getItem('tunr_host_room_code');
+        if (savedCode) {
+            useTunrStore.getState().setRoomCode(savedCode);
+        }
+        
+        await fetchLibrary();
+        performSearch("Popular Karaoke Songs");
+    };
+    init();
   }, []);
 
   const fetchLibrary = async () => {
@@ -448,33 +459,36 @@ const FALLBACK_SONGS = [
             </label>
 
             {/* Manual URL Bar */}
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-white/10" />
-              <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-[0.2em]">or add by link</span>
-              <div className="h-px flex-1 bg-white/10" />
+            <div className="flex items-center gap-3 py-2">
+              <div className="h-px flex-1 bg-violet-500/20" />
+              <span className="text-xs text-violet-400 font-black uppercase tracking-[0.2em] px-4">Direct Link Add</span>
+              <div className="h-px flex-1 bg-violet-500/20" />
             </div>
 
-            <label className="flex flex-col w-full group">
-              <div className="flex w-full items-stretch rounded-xl h-12 bg-white/5 border border-white/10 group-focus-within:border-violet-500/50 transition-all">
-                <div className="text-neutral-500 flex items-center justify-center pl-4">
-                  <Link className="w-4 h-4" />
+            <div className="group relative">
+               <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+               <label className="relative flex flex-col w-full">
+                <div className="flex w-full items-stretch rounded-xl h-14 bg-neutral-900 border border-violet-500/30 group-focus-within:border-violet-500 transition-all shadow-2xl">
+                    <div className="text-violet-400 flex items-center justify-center pl-5">
+                    <Link className="w-5 h-5" />
+                    </div>
+                    <input 
+                        className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-base font-normal text-white placeholder:text-neutral-500" 
+                        placeholder="Paste YouTube Video URL (e.g. youtube.com/watch?v=...)" 
+                        value={manualUrl}
+                        onChange={(e) => setManualUrl(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
+                    />
+                    <button 
+                        onClick={handleUrlAdd}
+                        disabled={isFetchingUrl || !manualUrl}
+                        className="bg-violet-600 text-white px-6 m-1.5 rounded-lg font-bold text-sm hover:bg-violet-500 transition-all disabled:opacity-50 shadow-lg shadow-violet-600/20"
+                    >
+                        {isFetchingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Fetch & Add'}
+                    </button>
                 </div>
-                <input 
-                    className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-sm font-normal placeholder:text-neutral-600" 
-                    placeholder="Paste YouTube Video URL..." 
-                    value={manualUrl}
-                    onChange={(e) => setManualUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
-                />
-                <button 
-                    onClick={handleUrlAdd}
-                    disabled={isFetchingUrl || !manualUrl}
-                    className="bg-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white px-4 m-1 rounded-lg font-bold text-xs transition-all disabled:opacity-50"
-                >
-                    {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Fetch & Add'}
-                </button>
-              </div>
-            </label>
+                </label>
+            </div>
 
             {/* Quick Filters Removed */}
             <div className="flex flex-wrap items-center justify-center gap-2">

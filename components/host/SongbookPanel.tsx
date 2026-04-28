@@ -37,8 +37,17 @@ export const SongbookPanel: React.FC = () => {
 
   // Load Library & Default Recommendations on Mount
   useEffect(() => {
-    fetchLibrary();
-    performSearch("Popular Karaoke Songs");
+    const init = async () => {
+        // Recover Room Code from Host session
+        const savedCode = localStorage.getItem('tunr_host_room_code');
+        if (savedCode) {
+            useTunrStore.getState().setRoomCode(savedCode);
+        }
+        
+        await fetchLibrary();
+        performSearch("Popular Karaoke Songs");
+    };
+    init();
   }, []);
 
   const fetchLibrary = async () => {
@@ -318,11 +327,11 @@ export const SongbookPanel: React.FC = () => {
            </div>
 
            {/* Manual URL Add */}
-           <div className="flex gap-2">
+           <div className="flex gap-2 p-1.5 bg-violet-500/10 rounded-2xl border border-violet-500/20">
                 <div className="relative flex-1">
-                    <Music className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+                    <Music className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-violet-400" />
                     <input 
-                        className="w-full bg-white/5 border border-white/5 rounded-xl h-10 pl-10 pr-4 text-xs focus:outline-none focus:border-violet-500/50 transition-all placeholder:text-neutral-600" 
+                        className="w-full bg-black/40 border border-white/5 rounded-xl h-10 pl-10 pr-4 text-xs focus:outline-none focus:border-violet-500 transition-all placeholder:text-neutral-500" 
                         placeholder="Or paste YouTube URL to add immediately..." 
                         value={manualUrl}
                         onChange={(e) => setManualUrl(e.target.value)}
@@ -332,9 +341,9 @@ export const SongbookPanel: React.FC = () => {
                 <button 
                     onClick={handleUrlAdd}
                     disabled={isFetchingUrl || !manualUrl}
-                    className="px-4 bg-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                    className="px-6 bg-violet-600 text-white hover:bg-violet-500 rounded-xl text-xs font-bold transition-all disabled:opacity-50 shadow-lg shadow-violet-600/20"
                 >
-                    {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Fetch Link'}
+                    {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add Link'}
                 </button>
            </div>
        </div>
