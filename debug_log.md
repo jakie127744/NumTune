@@ -131,3 +131,22 @@ Prevention:
 - Rule or Pattern: When using raw embedded visual iFrames that run heavily in the background, avoid relying on hidden parallel logic players. Instead, hook directly into the visual window's raw network broadcast queue.
 - Future Safeguard: Keep the 'infoDelivery' parser globally available anywhere automated playback skipping is required.
 
+---
+
+Bug:
+
+- Description: Email/password login not working — users unable to sign in as host.
+- Location: `app/auth/page.tsx`
+- Root Cause: Supabase email/password auth (`signInWithPassword`) was failing silently or erroring (likely unconfirmed email, no user records, or misconfigured Supabase Auth settings). No fallback mechanism existed.
+
+Fix:
+
+- Summary: Replaced broken email/password as the primary login with Google OAuth via Supabase's `signInWithOAuth` provider. Email/password retained as a hidden collapsible fallback. Added `/app/auth/callback/route.ts` to handle the post-OAuth code exchange and redirect to `/host`.
+- Files Changed: `app/auth/page.tsx`, `app/auth/callback/route.ts` (new)
+- Why It Works: Supabase natively supports Google as an OAuth provider. `signInWithOAuth({ provider: 'google' })` redirects the browser to Google's consent screen. After consent, Google redirects to the configured callback URL (`/auth/callback`). The callback route exchanges the one-time `code` for a full Supabase session via `exchangeCodeForSession`, then sends the user to `/host`.
+
+Prevention:
+
+- Rule or Pattern: For new apps, prefer social OAuth over email/password — it eliminates email confirmation friction and broken SMTP configs.
+- Future Safeguard: Always create an explicit `/auth/callback` route when using Supabase OAuth. The redirect URL must be whitelisted in both Supabase Dashboard → Auth → URL Configuration AND Google Cloud Console → OAuth 2.0 → Authorized Redirect URIs.
+
