@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Search, PlusCircle, Edit, Trash2, Disc, Loader2, Music, Mic2, CloudDownload } from 'lucide-react';
+import { Search, PlusCircle, Edit, Trash2, Disc, Loader2, Music, Mic2, CloudDownload, Link as LinkIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 
@@ -470,7 +470,7 @@ const FALLBACK_SONGS = [
                <label className="relative flex flex-col w-full">
                 <div className="flex w-full items-stretch rounded-xl h-14 bg-neutral-900 border border-violet-500/30 group-focus-within:border-violet-500 transition-all shadow-2xl">
                     <div className="text-violet-400 flex items-center justify-center pl-5">
-                    <Link className="w-5 h-5" />
+                    <LinkIcon className="w-5 h-5" />
                     </div>
                     <input 
                         className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-base font-normal text-white placeholder:text-neutral-500" 
