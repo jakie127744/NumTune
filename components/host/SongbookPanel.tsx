@@ -11,7 +11,7 @@ interface YouTubeSearchResult {
     channelTitle: string;
     thumbnails: {
       high: { url: string };
-      medium: { url: string };
+      medium?: { url: string };
     };
   };
   contentDetails?: {
@@ -29,6 +29,8 @@ export const SongbookPanel: React.FC = () => {
   const [isSeeding, setIsSeeding] = useState(false);
   const [library, setLibrary] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [manualUrl, setManualUrl] = useState('');
+  const [isFetchingUrl, setIsFetchingUrl] = useState(false);
 
   // Store actions
   const addToQueue = useTunrStore((state) => state.addToQueue);
@@ -45,6 +47,14 @@ export const SongbookPanel: React.FC = () => {
   };
 
   const parseDuration = (duration: string) => {
+    // Handle timestamp format (e.g., "3:45" or "1:02:30")
+    if (duration.includes(':')) {
+        const parts = duration.split(':').map(Number);
+        if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
+        if (parts.length === 2) return (parts[0] * 60) + parts[1];
+        return parts[0] || 0;
+    }
+    // Handle ISO 8601 format
     const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
     if (!match) return 0;
     const hours = (parseInt(match[1]) || 0);
@@ -84,61 +94,47 @@ export const SongbookPanel: React.FC = () => {
 
     // 2. YouTube Search
     try {
-      const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-      
       const SOURCES = [
           "Atomic Karaoke", "PROmusicCOVER", "CoversPH", "Singstar Karaoke",
-          "Top Hits Karaoke", "Sing King Karaoke", "Karaokey TV", 
-          "Pinoy Videoke Tambayan", "Mibalmz Karaoke"
+          "Top Hits Karaoke", "Sing King Karaoke", "Karaokey TV",
+          "Pinoy Videoke Tambayan", "Mibalmz Karaoke", "KaraOcraze", 
+          "Pinoy Karaoke Channel", "Crosswave Music"
       ];
       
       const selectedSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-      
       const cleanTerm = term.toLowerCase().includes('karaoke') 
           ? term 
           : `${term} ${selectedSource}`;
       
       const query = encodeURIComponent(cleanTerm);
       
-      const searchRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=20&q=${query}&key=${API_KEY}`
-      );
+      // Try No-API Search First
+      const searchRes = await fetch(`/api/yt-search?q=${query}`);
       const searchData = await searchRes.json();
       
-      if (searchData.error) {
-          console.error("YouTube API Error:", searchData.error);
-          setSearchError(`YouTube API Error: ${searchData.error.message}`);
-          setSearchResults([]);
-          return;
-      }
-      
-      if (!searchData.items?.length) {
-        setSearchResults([]);
-        return;
-      }
-
-      const videoIds = searchData.items
-        .filter((item: any) => item.id.kind === 'youtube#video')
-        .map((item: any) => item.id.videoId)
-        .join(',');
-
-      if (!videoIds) {
-          setSearchResults([]);
-          setIsSearching(false);
+      if (searchData.items?.length) {
+          const filtered = searchData.items.filter((video: any) => {
+            const durationSec = parseDuration(video.contentDetails.duration);
+            return durationSec <= 600 && durationSec >= 30;
+          });
+          setSearchResults(filtered);
           return;
       }
 
-      const videoRes = await fetch(
-        `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}&key=${API_KEY}`
+      // Fallback to Official API if scraper fails or returns nothing
+      const fallbackRes = await fetch(
+        `/api/youtube?endpoint=search&part=snippet&type=video&videoEmbeddable=true&maxResults=20&q=${query}`
       );
-      const videoData = await videoRes.json();
-
-      const filtered = videoData.items.filter((video: any) => {
-        const durationSec = parseDuration(video.contentDetails.duration);
-        return durationSec <= 600 && durationSec >= 30; // 30s to 10m
-      });
-
-      setSearchResults(filtered);
+      const fallbackData = await fallbackRes.json();
+      
+      if (fallbackData.items?.length) {
+          const videoIds = fallbackData.items.map((i: any) => i.id.videoId).join(',');
+          const videoRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoIds}`);
+          const videoData = await videoRes.json();
+          setSearchResults(videoData.items || []);
+      } else {
+          setSearchResults([]);
+      }
 
     } catch (error) {
       console.error("YouTube Search Error:", error);
@@ -147,10 +143,43 @@ export const SongbookPanel: React.FC = () => {
     }
   };
 
+  const handleUrlAdd = async () => {
+    if (!manualUrl.trim()) return;
+    setIsFetchingUrl(true);
+    try {
+      const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = manualUrl.match(regExp);
+      const videoId = (match && match[2].length === 11) ? match[2] : null;
+
+      if (!videoId) {
+        alert("Invalid YouTube URL. Please paste a full YouTube link.");
+        return;
+      }
+
+      // Fetch details via No-API route (using the ID as query)
+      const res = await fetch(`/api/yt-search?q=${videoId}`);
+      const data = await res.json();
+      
+      if (data.items?.length) {
+        const video = data.items.find((v: any) => v.id === videoId) || data.items[0];
+        handleQuickAdd(video);
+        setManualUrl('');
+      } else {
+        alert("Could not find video details. The video might be private or unavailable.");
+      }
+    } catch (error) {
+      console.error("URL Add Error:", error);
+    } finally {
+      setIsFetchingUrl(false);
+    }
+  };
+
   const handleQuickAdd = async (video: YouTubeSearchResult) => {
+    // Check if song already exists in library (by YouTube ID)
     const existingSong = library.find(s => s.youtube_id === video.id);
 
     if (existingSong) {
+        // Reuse existing
         addToQueue({
             id: existingSong.song_number,
             title: existingSong.title,
@@ -163,11 +192,15 @@ export const SongbookPanel: React.FC = () => {
         return; 
     }
 
+    // 1. Generate new ID
     const { data: maxIdData } = await supabase.from('songs').select('song_number').order('song_number', { ascending: false }).limit(1).single();
     const nextId = (maxIdData?.song_number || 9999) + 1;
 
-    const formatDuration = (isoDuration: string) => {
-        const match = isoDuration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    // Helper to format duration to MM:SS (handles both ISO and already formatted)
+    const formatDuration = (input: string) => {
+        if (input.includes(':')) return input; // Already MM:SS
+        
+        const match = input.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
         if (!match) return "0:00";
         const h = parseInt(match[1] || '0');
         const m = parseInt(match[2] || '0');
@@ -179,6 +212,7 @@ export const SongbookPanel: React.FC = () => {
 
     const formattedDuration = video.contentDetails ? formatDuration(video.contentDetails.duration) : "0:00";
 
+    // 2. Insert into Songs Library
     const newSong = {
       song_number: nextId,
       title: video.snippet.title,
@@ -198,6 +232,7 @@ export const SongbookPanel: React.FC = () => {
       return;
     }
 
+    // 3. Add to Queue immediately
     addToQueue({
         id: newSong.song_number,
         title: newSong.title,
@@ -207,6 +242,7 @@ export const SongbookPanel: React.FC = () => {
         singer: singerInput || "Host"
     }, singerInput || "Host");
     
+    // 4. Update local library state
     setLibrary([songData, ...library]);
     alert(`Added #${nextId} to Library & Queue for ${singerInput || "Host"}!`);
   };
@@ -269,16 +305,37 @@ export const SongbookPanel: React.FC = () => {
                         onChange={(e) => setSingerInput(e.target.value)}
                     />
                </div>
-               <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                <div className="relative flex-1">
+                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+                     <input 
+                         className="w-full bg-black/50 border border-white/10 rounded-xl h-12 pl-12 pr-4 text-sm focus:outline-none focus:border-primary transition-all" 
+                         placeholder="Search Artist, Title, or YouTube..." 
+                         value={searchQuery}
+                         onChange={(e) => setSearchQuery(e.target.value)}
+                     />
+                     {isSearching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />}
+                </div>
+           </div>
+
+           {/* Manual URL Add */}
+           <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Music className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                     <input 
-                        className="w-full bg-black/50 border border-white/10 rounded-xl max-w-full h-12 pl-12 pr-4 text-sm focus:outline-none focus:border-primary transition-all" 
-                        placeholder="Search Artist, Title, or YouTube..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl h-10 pl-10 pr-4 text-xs focus:outline-none focus:border-violet-500/50 transition-all placeholder:text-neutral-600" 
+                        placeholder="Or paste YouTube URL to add immediately..." 
+                        value={manualUrl}
+                        onChange={(e) => setManualUrl(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
                     />
-                    {isSearching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />}
-               </div>
+                </div>
+                <button 
+                    onClick={handleUrlAdd}
+                    disabled={isFetchingUrl || !manualUrl}
+                    className="px-4 bg-violet-600/20 text-violet-400 hover:bg-violet-600 hover:text-white rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                >
+                    {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Fetch Link'}
+                </button>
            </div>
        </div>
 

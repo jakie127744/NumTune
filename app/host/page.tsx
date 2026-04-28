@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { 
-  Users, Monitor, QrCode, Music, Clock, Copy, Check
+  Users, Monitor, QrCode, Music, Clock, Copy, Check, PlusCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTunrStore } from '@/lib/store';
@@ -83,7 +83,12 @@ export default function HostDashboard() {
       <header className="fixed top-0 w-full h-16 border-b border-white/5 bg-neutral-950/80 backdrop-blur-md z-50 flex items-center justify-between px-6">
         <div className="flex items-center gap-3">
            <Link href="/" className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-neutral-400 hover:text-white group">
-              <span className="text-sm font-bold tracking-tight">Back</span>
+              <span className="text-sm font-bold tracking-tight">Home</span>
+           </Link>
+           <div className="h-6 w-px bg-white/10 mx-2" />
+           <Link href="/songbook" className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-neutral-400 hover:text-white group">
+              <PlusCircle className="w-4 h-4 text-violet-400" />
+              <span className="text-sm font-bold tracking-tight">Add Music</span>
            </Link>
            <div className="h-6 w-px bg-white/10 mx-2" />
            <span className="font-bold text-lg tracking-tight">Off Key <span className="text-violet-400">Karaoke</span></span>
