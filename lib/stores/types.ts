@@ -28,6 +28,7 @@ export interface PlayerSlice {
   setLocalIsPlaying: (active: boolean) => void;
   togglePlay: () => void;
   playNext: () => Promise<void>;
+  playNextLegacy: () => Promise<void>;
   playPrevious: () => Promise<void>;
   syncPosition: (seconds: number) => Promise<void>;
   broadcastSync: (seconds: number) => void;

@@ -15,75 +15,106 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
     await get().ensureSession();
 
     const { roomCode, isPlaying } = get();
-    
-    // 1. ATOMIC RESET: Stop ALL currently playing songs in THIS ROOM
+
+    // Atomic stop-current + start-next, done server-side in one transaction
+    // to avoid the race where two callers (e.g. Stage's auto-end timer and a
+    // manual host skip) both observe a "clean" intermediate state and each
+    // advance the queue, double-skipping a singer.
+    const { data, error } = await supabase.rpc('advance_queue', { p_room_code: roomCode });
+
+    // RPC requires migration_advance_queue_rpc.sql; degrade to the old
+    // two-step (non-atomic) logic if that migration hasn't been run yet,
+    // rather than leaving Skip completely broken.
+    if (error?.code === 'PGRST202' || error?.message?.includes('Could not find the function')) {
+        console.warn('advance_queue RPC not found (run migration_advance_queue_rpc.sql) - falling back to legacy two-step skip.');
+        return get().playNextLegacy();
+    }
+
+    if (error) {
+        console.error("Error advancing queue:", error);
+        if (error.message?.includes('CONTROL_ERROR')) {
+            alert("CONTROL_ERROR: You do not own this room. Please create a NEW SESSION.");
+        } else {
+            alert(`Next Song Failed: ${error.message}`);
+        }
+        set({ isPlaying: false });
+        return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const stoppedCount = result?.stopped_count ?? 0;
+    const nextQueueId = result?.next_queue_id ?? null;
+
+    if (isPlaying && stoppedCount === 0 && nextQueueId === null) {
+         console.warn("Song already skipped natively by another client. Ignoring to prevent double skip.");
+         return;
+    }
+
+    if (nextQueueId === null) {
+        console.log("Queue empty in DB. Stopping.");
+        set({ currentSong: null, isPlaying: false });
+    }
+
+    get().fetchQueue();
+  },
+
+  // Legacy fallback used only when migration_advance_queue_rpc.sql hasn't been
+  // applied yet. Not atomic - kept solely so Skip doesn't fully break pre-migration.
+  playNextLegacy: async () => {
+    const { roomCode, isPlaying } = get();
+
     const { data: stoppedData, error: stopError } = await supabase
         .from('queue')
         .update({ status: 'history', is_playing: false })
         .eq('status', 'playing')
         .eq('room_code', roomCode)
         .select();
-    
+
     if (stopError) {
         console.error("Error stopping playback:", stopError);
         alert(`Next Song Failed (Stop): ${stopError.message}`);
         set({ isPlaying: false });
         return;
     }
-    
+
     if (isPlaying && (!stoppedData || stoppedData.length === 0)) {
          console.warn("Song already skipped natively by another client. Ignoring to prevent double skip.");
          return;
     }
 
-    // 2. Find the next song
     const { data: nextRows, error: fetchError } = await supabase
         .from('queue')
         .select('id, songs(title)')
         .eq('status', 'queued')
         .eq('room_code', roomCode)
-        .order('created_at', { ascending: true }) 
-        .order('id', { ascending: true }) 
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
         .limit(1);
-    
+
     if (fetchError) {
         console.error("Error fetching next:", fetchError);
         alert(`Next Song Failed (Fetch): ${fetchError.message}`);
-        set({ isPlaying: false }); 
+        set({ isPlaying: false });
         return;
     }
 
     if (nextRows && nextRows.length > 0) {
         const next = nextRows[0];
-        
-        const currentId = get().currentSong?.id;
-        if (currentId && next.id === currentId) {
-             console.error("Loop Detected: Next song is same as current song.");
-             alert("Session Stuck: Unable to advance queue. Please click 'NEW SESSION'.");
-             set({ isPlaying: false, currentSong: null });
-             return;
-        }
-
-        console.log("Advancing to DB-Next:", next.songs);
-        // Write timestamp-based playback state: song starts from 0, now
-        const { data: startedData, error: startError } = await supabase
+        const { error: startError } = await supabase
             .from('queue')
-            .update({ 
-                status: 'playing', 
+            .update({
+                status: 'playing',
                 is_playing: true,
                 current_position_seconds: 0,
                 last_sync_at: new Date().toISOString()
             })
             .eq('id', next.id)
             .select();
-        
+
         if (startError) {
              console.error("Error starting next:", startError);
              alert(`Next Song Failed (Start): ${startError.message}`);
-             set({ isPlaying: false, currentSong: null }); 
-        } else if (!startedData || startedData.length === 0) {
-             alert("CONTROL_ERROR: You do not own this room. Please create a NEW SESSION.");
-             set({ isPlaying: false });
+             set({ isPlaying: false, currentSong: null });
         }
     } else {
         console.log("Queue empty in DB. Stopping.");
@@ -114,16 +145,22 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
         .limit(1);
 
     if (lastSongs && lastSongs.length > 0) {
+        // Bump reset_trigger_count so Stage/Host preview seek to 0 even if
+        // their drift-correction interval hasn't fired yet - mirrors forceReset().
+        const { data: prevRow } = await supabase.from('queue').select('reset_trigger_count').eq('id', lastSongs[0].id).single();
+        const nextResetCount = (prevRow?.reset_trigger_count || 0) + 1;
+
         const { error } = await supabase
             .from('queue')
-            .update({ 
-                status: 'playing', 
-                is_playing: true, 
+            .update({
+                status: 'playing',
+                is_playing: true,
                 current_position_seconds: 0,
-                last_sync_at: new Date().toISOString()
+                last_sync_at: new Date().toISOString(),
+                reset_trigger_count: nextResetCount
             })
             .eq('id', lastSongs[0].id);
-            
+
         if (error) {
              console.error("Previous Song Error:", error);
              alert(`Play Previous Failed: ${error.message}`);

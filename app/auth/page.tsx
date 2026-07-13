@@ -56,10 +56,23 @@ export default function AuthPage() {
                 await useTunrStore.getState().ensureSession();
                 router.push('/host');
             } else {
-                const { error } = await supabase.auth.signUp({ email, password });
-                if (error) throw error;
-                alert('Account created! Check your email to confirm, then sign in.');
-                setIsLogin(true);
+                // If the host is currently on an anonymous session (the default
+                // when they never explicitly signed in), upgrade it IN PLACE
+                // rather than creating a brand-new account. This keeps the same
+                // auth.uid(), so their existing room/queue ownership carries over
+                // instead of being orphaned.
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user?.is_anonymous) {
+                    const { error } = await supabase.auth.updateUser({ email, password });
+                    if (error) throw error;
+                    alert('Account claimed! Your current room is now protected under this login.');
+                    router.push('/host');
+                } else {
+                    const { error } = await supabase.auth.signUp({ email, password });
+                    if (error) throw error;
+                    alert('Account created! Check your email to confirm, then sign in.');
+                    setIsLogin(true);
+                }
             }
         } catch (error: any) {
             setErrorMsg(error.message);

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ad-Free YouTube Player with Real Titles</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #1a2a6c);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            padding: 20px 0;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin: 0 auto 20px;
+        }
+        
+        .player-container {
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            margin-bottom: 30px;
+        }
+        
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 8px;
+            background: #000;
+        }
+        
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: #ff0000;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            background: #cc0000;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn i {
+            font-size: 1.2rem;
+        }
+        
+        .info-panel {
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        
+        .info-panel p {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        
+        .info-panel strong {
+            color: #ff4d4d;
+        }
+        
+        .playlist-container {
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .playlist-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .playlist-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .video-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .video-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .video-item:last-child {
+            border-bottom: none;
+        }
+        
+        .video-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .video-item.active {
+            background: rgba(255, 0, 0, 0.2);
+            border-left: 4px solid #ff0000;
+        }
+        
+        .video-index {
+            background: #ff0000;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-weight: bold;
+        }
+        
+        .video-info {
+            flex-grow: 1;
+        }
+        
+        .video-title {
+            font-weight: 500;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .video-meta {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+        
+        .ad-free-badge {
+            background: #00c853;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        
+        .how-it-works {
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 12px;
+            padding: 25px;
+            margin-top: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .how-it-works h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #ff4d4d;
+        }
+        
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .step {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .step-number {
+            display: inline-block;
+            width: 36px;
+            height: 36px;
+            background: #ff0000;
+            color: white;
+            border-radius: 50%;
+            line-height: 36px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .step h3 {
+            margin-bottom: 10px;
+            color: #ff9d9d;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #aaa;
+        }
+        
+        @media (max-width: 768px) {
+            .video-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .thumbnail {
+                width: 100%;
+                height: 150px;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Ad-Free YouTube Player with Real Titles</h1>
+            <p class="subtitle">Using yout-ube.com method to bypass ads - Actual video titles from your playlist</p>
+        </header>
+        
+        <div class="player-container">
+            <div class="video-wrapper">
+                <iframe id="player" src="" frameborder="0" allowfullscreen></iframe>
+            </div>
+            
+            <div class="controls">
+                <button id="prev-btn" class="btn">
+                    <i>⏮</i> Previous
+                </button>
+                <button id="play-btn" class="btn">
+                    <i>⏯</i> Play/Pause
+                </button>
+                <button id="next-btn" class="btn">
+                    Next <i>⏭</i>
+                </button>
+            </div>
+            
+            <div class="info-panel">
+                <p><strong>Current Video:</strong> <span id="current-title">Loading...</span></p>
+                <p><strong>Parameters:</strong> <span id="current-params">Loading...</span></p>
+            </div>
+        </div>
+        
+        <div class="playlist-container">
+            <div class="playlist-header">
+                <div class="playlist-title">Playlist Videos (<span id="total-count">0</span>)</div>
+                <div class="playlist-stats"><span id="current-video">0</span> / <span id="total-videos">0</span> Videos</div>
+            </div>
+            <div class="video-list" id="video-list">
+                <div class="loading">Loading video titles...</div>
+            </div>
+        </div>
+        
+        <div class="how-it-works">
+            <h2>How yout-ube.com Works</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Original Link</h3>
+                    <p>youtube.com/watch?v=...</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Add Hyphen</h3>
+                    <p>Insert "-" after "t"</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Ad-Free Version</h3>
+                    <p>yout-ube.com/watch?v=...</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Enjoy!</h3>
+                    <p>Watch without ads</p>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>Note: This player uses the yout-ube.com method to bypass ads. It works for embedded videos, live streams, and YouTube Shorts.</p>
+            <p>To see actual titles, run the enhanced scraper to collect video IDs and titles.</p>
+        </footer>
+
+        <!-- Include your playlist data file here -->
+        <!-- <script src="playlist_data.js"></script> -->
+    </div>
+
+    <script>
+        // Placeholder data - replace with actual data from playlist_data.js
+        const playlistVideos = [
+            { id: 'XlHs-uQpXOw', title: 'How to Build a Website - Complete Tutorial', params: '0&pp=OAI%3D' },
+            { id: 'dQw4w9WgXcQ', title: 'Never Gonna Give You Up - Official Music Video', params: '1&pp=OAI%3D' },
+            { id: 'jNQXAC9IVRw', title: 'Me at the zoo - First YouTube Video Ever Uploaded', params: '2&pp=OAI%3D' },
+            { id: 'kJQP7kiw5Fk', title: 'Luis Fonsi - Despacito ft. Daddy Yankee', params: '3&pp=OAI%3D' },
+            { id: 'CevxZvSJLk8', title: 'PSY - GANGNAM STYLE (강남스타일)', params: '4&pp=OAI%3D' },
+            { id: '9bZkp7q19f0', title: 'PSY - Gentleman M/V', params: '5&pp=OAI%3D' },
+            { id: 'OPf0YbXqDm0', title: 'Mark Ronson - Uptown Funk ft. Bruno Mars', params: '6&pp=OAI%3D' },
+            { id: 'pRpeEdMmmQ0', title: 'Luis Fonsi - Despacito (Remix) ft. Justin Bieber', params: '7&pp=OAI%3D' },
+            { id: 'JGwWNGJdvx8', title: 'Ed Sheeran - Shape of You', params: '8&pp=OAI%3D' },
+            { id: 'kJIxG-rVU70', title: 'Charlie Puth - Attention', params: '9&pp=OAI%3D' }
+            // Add more videos as needed...
+        ];
+
+        let currentVideoIndex = 0;
+        
+        // Initialize the player
+        function initPlayer() {
+            document.getElementById('total-videos').textContent = playlistVideos.length;
+            document.getElementById('total-count').textContent = playlistVideos.length;
+            renderPlaylist();
+            loadVideo(currentVideoIndex);
+        }
+        
+        // Render the playlist
+        function renderPlaylist() {
+            const videoList = document.getElementById('video-list');
+            videoList.innerHTML = '';
+            
+            playlistVideos.forEach((video, index) => {
+                const videoItem = document.createElement('div');
+                videoItem.className = 'video-item';
+                if (index === currentVideoIndex) {
+                    videoItem.classList.add('active');
+                }
+                
+                videoItem.innerHTML = `
+                    <div class="video-index">${index + 1}</div>
+                    <div class="video-info">
+                        <div class="video-title">${video.title}</div>
+                        <div class="video-meta">ID: ${video.id} • Params: ${video.params}</div>
+                    </div>
+                    <div class="ad-free-badge">AD-FREE</div>
+                `;
+                
+                videoItem.addEventListener('click', () => {
+                    currentVideoIndex = index;
+                    loadVideo(currentVideoIndex);
+                    updateActiveVideo();
+                });
+                
+                videoList.appendChild(videoItem);
+            });
+        }
+        
+        // Load a specific video
+        function loadVideo(index) {
+            if (index < 0 || index >= playlistVideos.length) return;
+            
+            const video = playlistVideos[index];
+            
+            // Update info panel
+            document.getElementById('current-title').textContent = video.title;
+            document.getElementById('current-params').textContent = video.params;
+            
+            // Parse parameters
+            const [idx, ppRaw] = video.params.split('&pp=');
+            const pp = ppRaw || '';
+            
+            // Convert YouTube URL to yout-ube.com format with playlist parameters
+            const videoUrl = `https://yout-ube.com/embed/${video.id}?list=PLIo4Clh5aK9skUU99r7A4OjGSV5d01WGp&index=${idx}&pp=${pp}`;
+            
+            document.getElementById('player').src = videoUrl;
+            document.getElementById('current-video').textContent = index + 1;
+            
+            // Scroll to active video in playlist
+            const videoItems = document.querySelectorAll('.video-item');
+            videoItems[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // Update active video highlight
+        function updateActiveVideo() {
+            document.querySelectorAll('.video-item').forEach((item, index) => {
+                if (index === currentVideoIndex) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+        
+        // Navigation functions
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (currentVideoIndex > 0) {
+                currentVideoIndex--;
+                loadVideo(currentVideoIndex);
+                updateActiveVideo();
+            }
+        });
+        
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (currentVideoIndex < playlistVideos.length - 1) {
+                currentVideoIndex++;
+                loadVideo(currentVideoIndex);
+                updateActiveVideo();
+            }
+        });
+        
+        // Play/pause functionality would require YouTube API implementation
+        document.getElementById('play-btn').addEventListener('click', () => {
+            alert('In a full implementation, this would control playback via YouTube API');
+        });
+        
+        // Initialize the player when the page loads
+        window.onload = initPlayer;
+    </script>
+</body>
+</html>

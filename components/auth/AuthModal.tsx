@@ -63,10 +63,22 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 router.push('/host');
                 onClose();
             } else {
-                const { error } = await supabase.auth.signUp({ email, password });
-                if (error) throw error;
-                alert('Account created! Check your email to confirm, then sign in.');
-                setIsLogin(true);
+                // Upgrade an existing anonymous session in place when possible,
+                // so an anonymous host's current room isn't orphaned by signing
+                // up under a brand-new account (different auth.uid()).
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user?.is_anonymous) {
+                    const { error } = await supabase.auth.updateUser({ email, password });
+                    if (error) throw error;
+                    alert('Account claimed! Your current room is now protected under this login.');
+                    router.push('/host');
+                    onClose();
+                } else {
+                    const { error } = await supabase.auth.signUp({ email, password });
+                    if (error) throw error;
+                    alert('Account created! Check your email to confirm, then sign in.');
+                    setIsLogin(true);
+                }
             }
         } catch (error: any) {
             setErrorMsg(error.message);

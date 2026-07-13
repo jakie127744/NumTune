@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
     Play, Pause, SkipForward, SkipBack, Volume2, VolumeX, Mic2, Monitor, RotateCcw 
 } from 'lucide-react';
 import { useTunrStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
+import { supabase, removeSongByYoutubeId } from '@/lib/supabase';
 
 /**
  * HostPlayer
@@ -27,7 +27,6 @@ export const HostPlayer: React.FC = () => {
     const setSyncNudge = useTunrStore(s => s.setSyncNudge);
 
     const [hostMuted, setHostMuted] = useState(true);
-    const [fallbackError, setFallbackError] = useState<string | null>(null);
     
     // ============================================================
     // TIMESTAMP-BASED SYNC (Host Preview)
@@ -77,6 +76,10 @@ export const HostPlayer: React.FC = () => {
             document.head.appendChild(tag);
         }
 
+        // Guard so YT firing onError multiple times for the same load
+        // failure doesn't call playNext()/remove the song more than once.
+        let errorHandled = false;
+
         const createPlayer = () => {
             if (!(window as any).YT || !(window as any).YT.Player) {
                 setTimeout(createPlayer, 200);
@@ -107,13 +110,16 @@ export const HostPlayer: React.FC = () => {
                     },
                     onError: (e: any) => {
                         console.error("Host Preview Error:", e.data);
-                        // 101/150 = Embedding restricted
-                        if (e.data === 101 || e.data === 150) {
-                            setFallbackError("Track restricted from embedding. Skipping...");
-                            setTimeout(() => {
-                                setFallbackError(null);
-                                useTunrStore.getState().playNext();
-                            }, 3000);
+                        // 101/150 = embedding restricted, 100 = video removed/private/not found
+                        if ((e.data === 100 || e.data === 101 || e.data === 150) && !errorHandled) {
+                            errorHandled = true;
+                            const restrictedYoutubeId = currentSong?.youtubeId;
+                            useTunrStore.getState().playNext();
+                            if (restrictedYoutubeId) {
+                                removeSongByYoutubeId(restrictedYoutubeId).then((removed) => {
+                                    if (removed) console.log(`Removed restricted song from library: ${restrictedYoutubeId}`);
+                                });
+                            }
                         }
                     }
                 }
@@ -233,23 +239,6 @@ export const HostPlayer: React.FC = () => {
 
                 {/* Player Container */}
                 <div className="absolute inset-0 z-20 overflow-hidden">
-                    {/* Error Display Overlay */}
-                    <AnimatePresence>
-                        {fallbackError && (
-                            <motion.div 
-                                initial={{ opacity: 0, y: -20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                className="absolute inset-x-0 top-10 flex justify-center z-50"
-                            >
-                                <div className="bg-red-600/90 text-white px-6 py-3 rounded-full font-bold shadow-2xl backdrop-blur-md flex items-center gap-3 border border-white/20">
-                                     <div className="w-2 h-2 rounded-full bg-white animate-ping" />
-                                     {fallbackError}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
                     <div className="relative w-full h-full">
                         {/* Unified Visual Layer (YT IFrame API target) */}
                         <div id="yt-host-preview-container" className="absolute inset-0 w-full h-full border-0 pointer-events-none z-10" />

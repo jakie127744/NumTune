@@ -1,0 +1,427 @@
+<div id="kq-root">
+<style>
+  #kq-root {
+    --bg: #15131a;
+    --bg-panel: #1d1a24;
+    --bg-panel-2: #242030;
+    --line: #322c3d;
+    --text: #f1ede6;
+    --text-dim: #9b93a8;
+    --amber: #f2b705;
+    --amber-dim: #8a6e1f;
+    --coral: #ff6f59;
+    --radius: 10px;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(242,183,5,0.10), transparent 60%),
+      var(--bg);
+    min-height: 100vh;
+    padding: 28px 18px 60px;
+  }
+  #kq-root * { box-sizing: border-box; }
+  #kq-root .wrap { max-width: 1100px; margin: 0 auto; }
+
+  #kq-root h1 {
+    font-size: 1.9rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  #kq-root .tagline {
+    color: var(--text-dim);
+    font-size: 0.92rem;
+    margin-bottom: 26px;
+  }
+  #kq-root .tagline strong { color: var(--amber); font-weight: 600; }
+
+  #kq-root .grid {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 860px) {
+    #kq-root .grid { grid-template-columns: 1fr; }
+  }
+
+  #kq-root .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  #kq-root .panel + .panel { margin-top: 18px; }
+
+  #kq-root .panel-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  /* Player */
+  #kq-root .video-frame {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--line);
+  }
+  #kq-root .video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+  #kq-root .video-frame .empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 0.9rem; text-align: center; padding: 20px;
+  }
+
+  #kq-root .now-playing {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 14px; padding: 10px 12px;
+    background: var(--bg-panel-2); border-radius: 8px;
+  }
+  #kq-root .eq { display: flex; align-items: flex-end; gap: 3px; height: 16px; flex-shrink: 0; }
+  #kq-root .eq span {
+    width: 3px; background: var(--amber); border-radius: 2px;
+    animation: kq-bounce 0.9s ease-in-out infinite;
+  }
+  #kq-root .eq span:nth-child(1) { height: 40%; animation-delay: -0.6s; }
+  #kq-root .eq span:nth-child(2) { height: 100%; animation-delay: -0.3s; }
+  #kq-root .eq span:nth-child(3) { height: 65%; animation-delay: 0s; }
+  @keyframes kq-bounce { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+  @media (prefers-reduced-motion: reduce) { #kq-root .eq span { animation: none; height: 70%; } }
+
+  #kq-root .now-title { font-size: 0.9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kq-root .now-title.idle { color: var(--text-dim); font-weight: 400; }
+
+  #kq-root .transport { display: flex; gap: 8px; margin-top: 12px; }
+  #kq-root button {
+    font-family: inherit; cursor: pointer; border: none; border-radius: 7px;
+    font-size: 0.85rem; font-weight: 600; padding: 9px 14px;
+    background: var(--bg-panel-2); color: var(--text);
+    transition: background 0.15s ease;
+  }
+  #kq-root button:hover:not(:disabled) { background: #2c2738; }
+  #kq-root button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #kq-root button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  #kq-root .btn-primary { background: var(--amber); color: #1a1606; }
+  #kq-root .btn-primary:hover:not(:disabled) { background: #ffc91a; }
+
+  /* Load + search */
+  #kq-root .file-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #kq-root .file-row label.upload {
+    background: var(--bg-panel-2); padding: 9px 14px; border-radius: 7px;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+  }
+  #kq-root .file-row label.upload:hover { background: #2c2738; }
+  #kq-root .file-row input[type=file] { display: none; }
+  #kq-root .lib-status { font-size: 0.8rem; color: var(--text-dim); }
+
+  #kq-root input[type=text] {
+    width: 100%; font-family: inherit; font-size: 0.88rem;
+    background: var(--bg-panel-2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 7px; padding: 9px 12px; margin-top: 12px;
+  }
+  #kq-root input[type=text]:focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+  #kq-root input::placeholder { color: var(--text-dim); }
+
+  #kq-root .list { max-height: 320px; overflow-y: auto; margin-top: 10px; border-radius: 7px; }
+  #kq-root .row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 8px; border-bottom: 1px solid var(--line);
+  }
+  #kq-root .row:last-child { border-bottom: none; }
+  #kq-root .row .idx {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--bg-panel-2); color: var(--text-dim);
+    font-size: 0.72rem; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  #kq-root .row .title { flex-grow: 1; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #kq-root .row.queue-row.playing { background: rgba(242,183,5,0.08); border-left: 3px solid var(--amber); padding-left: 5px; }
+  #kq-root .row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+  #kq-root .icon-btn {
+    background: transparent; padding: 4px 7px; font-size: 0.78rem; color: var(--text-dim);
+  }
+  #kq-root .icon-btn:hover:not(:disabled) { color: var(--text); background: var(--bg-panel-2); }
+  #kq-root .icon-btn.danger:hover { color: var(--coral); }
+
+  #kq-root .empty-state { color: var(--text-dim); font-size: 0.85rem; padding: 14px 4px; text-align: center; }
+  #kq-root .more-note { color: var(--text-dim); font-size: 0.75rem; padding: 8px 4px 0; text-align: center; }
+
+  #kq-root .add-manual { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  #kq-root .add-manual input[type=text] { margin-top: 0; flex: 1 1 160px; }
+  #kq-root .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--amber); color: #1a1606; font-weight: 600; font-size: 0.82rem;
+    padding: 9px 16px; border-radius: 20px; opacity: 0; pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  #kq-root .toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
+</style>
+
+<div class="wrap">
+  <h1>Song Queue Player</h1>
+  <p class="tagline">Load your scraped playlist, search for songs, and build <strong>your own queue</strong> — nothing plays automatically until you choose it.</p>
+
+  <div class="grid">
+    <!-- LEFT: Player -->
+    <div>
+      <div class="panel">
+        <div class="panel-title">Now Playing</div>
+        <div class="video-frame">
+          <div class="empty" id="kq-empty">Pick a song from your queue to start.</div>
+          <iframe id="kq-iframe" style="display:none" allowfullscreen></iframe>
+        </div>
+        <div class="now-playing">
+          <div class="eq" id="kq-eq" style="visibility:hidden"><span></span><span></span><span></span></div>
+          <div class="now-title idle" id="kq-now-title">Nothing playing</div>
+        </div>
+        <div class="transport">
+          <button id="kq-prev" disabled>⏮ Prev</button>
+          <button id="kq-next" disabled>Next ⏭</button>
+          <button id="kq-stop" disabled>Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Library + Queue -->
+    <div>
+      <div class="panel">
+        <div class="panel-title">Your Library</div>
+        <div class="file-row">
+          <label class="upload" for="kq-file">Load playlist_data.txt</label>
+          <input type="file" id="kq-file" accept=".txt">
+          <span class="lib-status" id="kq-lib-status">No file loaded yet</span>
+        </div>
+        <input type="text" id="kq-search" placeholder="Search your library by title…" disabled>
+        <div class="list" id="kq-library-list">
+          <div class="empty-state">Load a .txt file (the one your scraper saves — "ID | Title" per line) to search your songs here.</div>
+        </div>
+
+        <div class="add-manual">
+          <input type="text" id="kq-manual-url" placeholder="Or paste a YouTube URL / video ID…">
+          <input type="text" id="kq-manual-title" placeholder="Title (optional)">
+          <button id="kq-manual-add">Add</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">Up Next (<span id="kq-queue-count">0</span>)</div>
+        <div class="list" id="kq-queue-list">
+          <div class="empty-state">Your queue is empty. Add songs from the library above.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="kq-toast"></div>
+</div>
+
+<script>
+(function() {
+  const root = document.getElementById('kq-root');
+  let library = [];      // {id, title}
+  let queue = [];         // {id, title}
+  let playingIndex = -1;  // index within queue currently loaded in player
+
+  const $ = (sel) => root.querySelector(sel);
+  const fileInput = $('#kq-file');
+  const libStatus = $('#kq-lib-status');
+  const searchInput = $('#kq-search');
+  const libraryListEl = $('#kq-library-list');
+  const queueListEl = $('#kq-queue-list');
+  const queueCountEl = $('#kq-queue-count');
+  const iframe = $('#kq-iframe');
+  const emptyFrame = $('#kq-empty');
+  const nowTitle = $('#kq-now-title');
+  const eq = $('#kq-eq');
+  const prevBtn = $('#kq-prev');
+  const nextBtn = $('#kq-next');
+  const stopBtn = $('#kq-stop');
+  const toast = $('#kq-toast');
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.remove('show'), 1600);
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // ---- Library loading ----
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const lines = ev.target.result.split(/\r?\n/);
+      const parsed = [];
+      for (const line of lines) {
+        if (!line.trim() || !line.includes(' | ')) continue;
+        const [id, ...rest] = line.split(' | ');
+        const title = rest.join(' | ').trim();
+        if (id.trim() && title) parsed.push({ id: id.trim(), title });
+      }
+      library = parsed;
+      libStatus.textContent = library.length
+        ? `${library.length} songs loaded`
+        : 'No valid entries found in that file';
+      searchInput.disabled = library.length === 0;
+      renderLibrary('');
+    };
+    reader.onerror = () => { libStatus.textContent = 'Could not read that file'; };
+    reader.readAsText(file);
+  });
+
+  searchInput.addEventListener('input', () => renderLibrary(searchInput.value));
+
+  function renderLibrary(query) {
+    const q = query.trim().toLowerCase();
+    let results = q ? library.filter(v => v.title.toLowerCase().includes(q)) : library;
+    const total = results.length;
+    const capped = results.slice(0, 200);
+
+    if (library.length === 0) {
+      libraryListEl.innerHTML = '<div class="empty-state">Load a .txt file (the one your scraper saves — "ID | Title" per line) to search your songs here.</div>';
+      return;
+    }
+    if (capped.length === 0) {
+      libraryListEl.innerHTML = '<div class="empty-state">No matches. Try a different search.</div>';
+      return;
+    }
+
+    libraryListEl.innerHTML = capped.map((v, i) => `
+      <div class="row">
+        <div class="idx">${i + 1}</div>
+        <div class="title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div>
+        <div class="row-actions">
+          <button class="icon-btn lib-add" data-id="${escapeHtml(v.id)}" data-title="${escapeHtml(v.title)}" aria-label="Add to queue">+ Add</button>
+        </div>
+      </div>
+    `).join('') + (total > 200 ? `<div class="more-note">Showing first 200 of ${total} matches — refine your search to narrow it down.</div>` : '');
+  }
+
+  libraryListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.lib-add');
+    if (!btn) return;
+    addToQueue({ id: btn.dataset.id, title: btn.dataset.title });
+  });
+
+  // ---- Manual add ----
+  function extractVideoId(input) {
+    input = input.trim();
+    let m = input.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+    if (m) return m[1];
+    m = input.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+    if (m) return m[1];
+    m = input.match(/embed\/([a-zA-Z0-9_-]{11})/);
+    if (m) return m[1];
+    if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+    return null;
+  }
+
+  $('#kq-manual-add').addEventListener('click', () => {
+    const urlVal = $('#kq-manual-url').value;
+    const titleVal = $('#kq-manual-title').value.trim();
+    const id = extractVideoId(urlVal);
+    if (!id) { showToast('Could not find a video ID in that input'); return; }
+    addToQueue({ id, title: titleVal || `Video (${id})` });
+    $('#kq-manual-url').value = '';
+    $('#kq-manual-title').value = '';
+  });
+
+  // ---- Queue management ----
+  function addToQueue(song) {
+    queue.push(song);
+    renderQueue();
+    showToast(`Added "${song.title}" to queue`);
+  }
+
+  function removeFromQueue(i) {
+    queue.splice(i, 1);
+    if (playingIndex === i) { playingIndex = -1; updatePlayerEmpty(); }
+    else if (playingIndex > i) { playingIndex--; }
+    renderQueue();
+  }
+
+  function moveInQueue(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= queue.length) return;
+    [queue[i], queue[j]] = [queue[j], queue[i]];
+    if (playingIndex === i) playingIndex = j;
+    else if (playingIndex === j) playingIndex = i;
+    renderQueue();
+  }
+
+  function renderQueue() {
+    queueCountEl.textContent = queue.length;
+    if (queue.length === 0) {
+      queueListEl.innerHTML = '<div class="empty-state">Your queue is empty. Add songs from the library above.</div>';
+      prevBtn.disabled = true; nextBtn.disabled = true;
+      return;
+    }
+    queueListEl.innerHTML = queue.map((v, i) => `
+      <div class="row queue-row ${i === playingIndex ? 'playing' : ''}">
+        <div class="idx">${i + 1}</div>
+        <div class="title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div>
+        <div class="row-actions">
+          <button class="icon-btn q-up" data-i="${i}" aria-label="Move up" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="icon-btn q-down" data-i="${i}" aria-label="Move down" ${i === queue.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="icon-btn q-play" data-i="${i}" aria-label="Play this song">▶</button>
+          <button class="icon-btn danger q-remove" data-i="${i}" aria-label="Remove from queue">✕</button>
+        </div>
+      </div>
+    `).join('');
+
+    prevBtn.disabled = playingIndex <= 0;
+    nextBtn.disabled = playingIndex === -1 || playingIndex >= queue.length - 1;
+  }
+
+  queueListEl.addEventListener('click', (e) => {
+    const t = e.target;
+    if (t.classList.contains('q-up')) moveInQueue(+t.dataset.i, -1);
+    else if (t.classList.contains('q-down')) moveInQueue(+t.dataset.i, 1);
+    else if (t.classList.contains('q-remove')) removeFromQueue(+t.dataset.i);
+    else if (t.classList.contains('q-play')) playAt(+t.dataset.i);
+  });
+
+  // ---- Player (manual control only — no autoplay to next track) ----
+  function playAt(i) {
+    if (i < 0 || i >= queue.length) return;
+    playingIndex = i;
+    const song = queue[i];
+    iframe.src = `https://www.youtube.com/embed/${song.id}?rel=0&autoplay=1`;
+    iframe.style.display = 'block';
+    emptyFrame.style.display = 'none';
+    nowTitle.textContent = song.title;
+    nowTitle.classList.remove('idle');
+    eq.style.visibility = 'visible';
+    stopBtn.disabled = false;
+    renderQueue();
+  }
+
+  function updatePlayerEmpty() {
+    iframe.src = '';
+    iframe.style.display = 'none';
+    emptyFrame.style.display = 'flex';
+    nowTitle.textContent = 'Nothing playing';
+    nowTitle.classList.add('idle');
+    eq.style.visibility = 'hidden';
+    stopBtn.disabled = true;
+    renderQueue();
+  }
+
+  prevBtn.addEventListener('click', () => playAt(playingIndex - 1));
+  nextBtn.addEventListener('click', () => playAt(playingIndex + 1));
+  stopBtn.addEventListener('click', updatePlayerEmpty);
+})();
+</script>

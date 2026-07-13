@@ -194,3 +194,66 @@ Prevention:
 
 - Rule or Pattern: In server-side redirects (Next.js Edge/Node routes), always determine the origin using headers (`host` and `x-forwarded-proto`) rather than relying on the request's internal URL object when behind a proxy.
 - Future Safeguard: Use a utility function for robust origin detection across all server-side redirect logic.
+
+---
+
+Bug:
+
+- Description: OAuth callback redirecting to `/auth?error=oauth_failed#access_token=...` after successful Google login.
+- Location: `app/auth/page.tsx`, `components/auth/AuthModal.tsx`
+- Root Cause: Supabase OAuth was using the Implicit Flow (default for `@supabase/supabase-js`), which places the authentication tokens in the URL hash fragment (`#access_token=...`). The `redirectTo` parameter was set to an API route (`/auth/callback`), which cannot read URL hash fragments. Since the API route didn't find a `?code=` query parameter, it failed and redirected back to `/auth` with an error.
+
+Fix:
+
+- Summary: Changed OAuth `redirectTo` to point directly to the client-side `/host` page.
+- Files Changed: `app/auth/page.tsx`, `components/auth/AuthModal.tsx`
+- Why It Works: Bypassing the server-side callback route entirely allows the Supabase client initialized on the `/host` page to capture the `#access_token` from the URL, automatically save the session to `localStorage`, and authenticate the user without needing server-side PKCE code exchange.
+
+Prevention:
+
+- Rule or Pattern: When using `@supabase/supabase-js` without `@supabase/ssr` (client-side only authentication), never set the `redirectTo` URL to a server-side API route. Always redirect to a client-rendered page where the Supabase client can parse the implicit flow hash fragment.
+- Future Safeguard: If Server-Side auth/cookies are needed later, explicitly install `@supabase/ssr` and configure `flowType: 'pkce'`.
+
+---
+
+Bug:
+
+- Description: Clicking Home redirects logged-in hosts back to the host dashboard rather than displaying the home landing page.
+- Location: `app/page.tsx`
+- Root Cause: A `useEffect` hook on the landing page redirected authenticated users to `/host` automatically to skip the login flow, which unintentionally hijacked explicit home link clicks when already logged in.
+
+Fix:
+
+- Summary: Removed the auto-redirect to `/host` inside the authentication `useEffect` block, only opening the AuthModal if the user is not authenticated.
+- Files Changed: `app/page.tsx`
+- Why It Works: Allows authenticated hosts to browse to and view the home grid landing page at `/` without being redirected.
+
+Prevention:
+
+- Rule or Pattern: Landing/Index page components should not enforce strict automatic redirects on user-initiated nav actions if hosts need to access home views.
+- Future Safeguard: Guard automatic redirects using routing query parameters (e.g., `?redirect=false` or dynamic landing route design) to distinguish automatic first-load visits from explicit navigations.
+
+---
+
+Bug:
+
+- Description: Pasting a YouTube video URL in the manual "Fetch & Add" input fails to add tracks.
+- Location: `app/songbook/page.tsx`, `lib/stores/queueSlice.ts`
+- Root Cause: 
+  1. The app fetched video details by querying `/api/yt-search?q=${videoId}`. The `yt-search` library relies on scraping and search results, which is easily blocked by YouTube rate limits or returns empty lists when queried with a raw video ID.
+  2. The URL extraction regex failed for YouTube Shorts or raw video IDs.
+  3. Generating the `nextId` and inserting the track relied on `.single()`, which throws errors/exceptions on empty tables/query edge cases. `lib/stores/queueSlice.ts` also used `.single()` for song lookups and auto-registration, causing silent crashes.
+
+Fix:
+
+- Summary: Updated the manual URL fetch handler to request video details from the official YouTube API `/api/youtube` proxy endpoint first (falling back to `/api/yt-search` only as a secondary backup). Expanded the regex pattern to match Shorts/raw IDs, and refactored all database queries to avoid `.single()`, replacing them with `.limit(1)` and select arrays.
+- Files Changed: `app/songbook/page.tsx`, `lib/stores/queueSlice.ts`
+- Why It Works:
+  - The official API bypasses scraping blocks.
+  - Parsing matches raw 11-char IDs and Shorts URLs.
+  - Querying and inserting without `.single()` returns arrays safely, preventing PGRST116 exceptions and silent crashes.
+
+Prevention:
+
+- Rule or Pattern: Use official APIs for individual resource retrieval by ID rather than relying on search scraping. Never use `.single()` in queries that can result in zero records or on insert operations.
+- Future Safeguard: Always check and update store methods to be consistent with database schema access updates.

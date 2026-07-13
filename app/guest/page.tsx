@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Search, Music, Mic2, Star, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows } from '@/lib/supabase';
 
 export default function GuestPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,8 +41,8 @@ export default function GuestPage() {
   // Fetch Library on Mount
   React.useEffect(() => {
     const fetchSongs = async () => {
-      const { data } = await supabase.from('songs').select('*').order('song_number', { ascending: true });
-      if (data) setLibrary(data);
+      const data = await fetchAllRows('songs', (q) => q.order('song_number', { ascending: true }));
+      setLibrary(data);
       setLoading(false);
     };
     fetchSongs();
@@ -210,11 +210,40 @@ export default function GuestPage() {
                                 setIsQueuing(true);
                                 
                                 try {
+                                    // 0. Ensure we have an auth session before touching the queue
+                                    // (RLS inserts can otherwise fail silently/opaquely on first load)
+                                    const { data: { session } } = await supabase.auth.getSession();
+                                    if (!session) {
+                                        const { error: authError } = await supabase.auth.signInAnonymously();
+                                        if (authError) {
+                                            alert("Couldn't connect. Please refresh and try again.");
+                                            setIsQueuing(false);
+                                            return;
+                                        }
+                                    }
+
                                     // 1. Find song by ID
                                     const { data: song, error } = await supabase.from('songs').select('id, title, artist').eq('song_number', songCode).single();
-                                    
+
                                     if (error || !song) {
                                         alert("Song not found! Please check the code in the book.");
+                                        setIsQueuing(false);
+                                        return;
+                                    }
+
+                                    // 1b. Guard against double-submitting the same song for the same singer
+                                    const { data: dupe } = await supabase
+                                        .from('queue')
+                                        .select('id')
+                                        .eq('room_code', roomCode)
+                                        .eq('song_id', song.id)
+                                        .eq('singer_name', singerName)
+                                        .in('status', ['queued', 'playing'])
+                                        .limit(1);
+
+                                    if (dupe && dupe.length > 0) {
+                                        alert(`"${song.title}" is already in the queue for ${singerName}.`);
+                                        setSongCode('');
                                         setIsQueuing(false);
                                         return;
                                     }

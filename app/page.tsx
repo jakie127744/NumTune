@@ -14,11 +14,8 @@ export default function Home() {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user && !session.user.is_anonymous) {
-        // If already logged in, auto-redirect to host
-        router.push('/host');
-      } else {
-        // Otherwise, auto-open the login modal as requested
+      if (!session?.user || session.user.is_anonymous) {
+        // Auto-open the login modal as requested if not logged in
         setIsAuthModalOpen(true);
       }
     };

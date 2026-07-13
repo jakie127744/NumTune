@@ -8,7 +8,7 @@ import dynamic from 'next/dynamic';
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
 
 import { useTunrStore } from '@/lib/store';
-import { supabase } from '@/lib/supabase';
+import { supabase, removeSongByYoutubeId } from '@/lib/supabase';
 
 export default function MainStage() {
   // OPTIMIZED SELECTORS
@@ -26,7 +26,6 @@ export default function MainStage() {
   const setSyncNudge = useTunrStore(s => s.setSyncNudge);
 
   const [hasInteracted, setHasInteracted] = React.useState(false);
-  const [fallbackError, setFallbackError] = React.useState<string | null>(null);
   const [tempCode, setTempCode] = React.useState('');
   const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
   const [showDebug, setShowDebug] = React.useState(false);
@@ -351,13 +350,17 @@ export default function MainStage() {
   // Ultra-reliable Unthrottled Raw IFrame Event Monitor
   React.useEffect(() => {
      if (!currentSong) return;
+     // YouTube's IFrame API can fire multiple onError messages for the same
+     // failed load before playNext() has a chance to update currentSong -
+     // guard so we only act on the first one per song.
+     let errorHandled = false;
      const handleMessage = (e: MessageEvent) => {
          try {
              let data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
              const isEndedRaw = data && data.event === 'infoDelivery' && data.info && data.info.playerState === 0;
              const isEndedWrapped = data && data.event === 'onStateChange' && data.info === 0;
-             
-             if (isEndedRaw || isEndedWrapped) { 
+
+             if (isEndedRaw || isEndedWrapped) {
                  setDebugEnded(true);
                  console.log("Raw Iframe ended. Starting 5-sec intermission...");
                  const songEndedId = currentSong.id;
@@ -370,9 +373,16 @@ export default function MainStage() {
                  }, 5000);
              } else if (data && data.event === 'onError') {
                  const code = data.info;
-                 if (code === 101 || code === 150) {
-                     setFallbackError("Error: Track restricted. Skipping...");
-                     setTimeout(() => useTunrStore.getState().playNext(), 3000);
+                 // 101/150 = embedding restricted, 100 = video removed/private/not found
+                 if ((code === 100 || code === 101 || code === 150) && !errorHandled) {
+                     errorHandled = true;
+                     const restrictedYoutubeId = currentSong?.youtubeId;
+                     useTunrStore.getState().playNext();
+                     if (restrictedYoutubeId) {
+                         removeSongByYoutubeId(restrictedYoutubeId).then((removed) => {
+                             if (removed) console.log(`Removed restricted song from library: ${restrictedYoutubeId}`);
+                         });
+                     }
                  }
              }
          } catch(error) {}
@@ -474,16 +484,6 @@ export default function MainStage() {
                     </div>
                 )}
 
-                {/* Error Display Overlay */}
-                {fallbackError && (
-                    <div className="absolute inset-x-0 top-10 flex justify-center z-50 animate-in slide-in-from-top-10 fade-in duration-500">
-                        <div className="bg-red-600/90 text-white px-6 py-3 rounded-full font-bold shadow-2xl backdrop-blur-md flex items-center gap-3">
-                             <div className="w-2 h-2 rounded-full bg-white animate-ping" />
-                             {fallbackError}
-                        </div>
-                    </div>
-                )}
-                
                 {/* LIVE SYNC DIAGNOSTIC — Only show if debug enabled */}
                 {showDebug && (
                     <div className="absolute top-4 right-4 z-[200] bg-black/90 text-white p-4 rounded-xl font-mono text-sm space-y-1 min-w-[250px] border border-white/20">
@@ -531,8 +531,8 @@ export default function MainStage() {
           {currentSong && (
              <div className="absolute top-16 left-16 z-20 animate-in fade-in slide-in-from-left duration-700">
                <div className="flex flex-col gap-1">
-                 <h3 className="text-5xl font-bold text-white drop-shadow-2xl">{currentSong.title}</h3>
-                 <p className="text-white/90 text-3xl font-medium drop-shadow-xl">{currentSong.artist}</p>
+                 <h3 className="text-2xl font-bold text-white drop-shadow-2xl">{currentSong.title}</h3>
+                 <p className="text-white/90 text-lg font-medium drop-shadow-xl">{currentSong.artist}</p>
                </div>
              </div>
           )}

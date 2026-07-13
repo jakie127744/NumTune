@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, PlusCircle, Edit, Trash2, Disc, Loader2, Music, Mic2, CloudDownload, Link as LinkIcon } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 
 // Types for YouTube API Response
@@ -35,6 +35,7 @@ export default function SongbookPage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState('');
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Store actions
   const addToQueue = useTunrStore((state) => state.addToQueue);
@@ -44,13 +45,18 @@ export default function SongbookPage() {
     const init = async () => {
         // Ensure store knows we are host
         useTunrStore.setState({ isHost: true });
-        
+
         // Recover Room Code from Host session
         const savedCode = localStorage.getItem('tunr_host_room_code');
         if (savedCode) {
             useTunrStore.getState().setRoomCode(savedCode);
         }
-        
+
+        // Only the admin account ever sees delete controls - and only outside production
+        const { data: { session } } = await supabase.auth.getSession();
+        const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+        setIsAdmin(process.env.NODE_ENV !== 'production' && !!adminEmail && session?.user?.email === adminEmail);
+
         await fetchLibrary();
         performSearch("Popular Karaoke Songs");
     };
@@ -58,8 +64,8 @@ export default function SongbookPage() {
   }, []);
 
   const fetchLibrary = async () => {
-    const { data } = await supabase.from('songs').select('*').order('song_number', { ascending: false });
-    if (data) setLibrary(data);
+    const data = await fetchAllRows('songs', (q) => q.order('song_number', { ascending: false }));
+    setLibrary(data);
   };
 
   const parseDuration = (duration: string) => {
@@ -163,28 +169,72 @@ export default function SongbookPage() {
     if (!manualUrl.trim()) return;
     setIsFetchingUrl(true);
     try {
-      const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-      const match = manualUrl.match(regExp);
-      const videoId = (match && match[2].length === 11) ? match[2] : null;
+      // Robust YouTube ID extraction matching standard links, shorts, and raw 11-char IDs
+      const extractVideoId = (url: string) => {
+        const cleanUrl = url.trim();
+        if (cleanUrl.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(cleanUrl)) {
+          return cleanUrl;
+        }
+        const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
+        const match = cleanUrl.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+      };
+
+      const videoId = extractVideoId(manualUrl);
 
       if (!videoId) {
-        alert("Invalid YouTube URL. Please paste a full YouTube link.");
+        alert("Invalid YouTube URL. Please paste a full YouTube link or an 11-character video ID.");
         return;
       }
 
-      // Fetch details via No-API route (using the ID as query)
-      const res = await fetch(`/api/yt-search?q=${videoId}`);
-      const data = await res.json();
+      let video: any = null;
+
+      // 1. Try fetching via official API proxy first for accuracy
+      try {
+        const apiRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoId}`);
+        if (apiRes.ok) {
+          const apiData = await apiRes.json();
+          if (apiData.items?.length) {
+            video = apiData.items[0];
+          }
+        }
+      } catch (apiErr) {
+        console.error("Official API fetch failed, falling back to yt-search:", apiErr);
+      }
+
+      // 2. Fallback to No-API route (yt-search scraper)
+      if (!video) {
+        const res = await fetch(`/api/yt-search?q=${videoId}`);
+        const data = await res.json();
+        if (data.items?.length) {
+          video = data.items.find((v: any) => v.id === videoId) || data.items[0];
+        }
+      }
       
-      if (data.items?.length) {
-        const video = data.items.find((v: any) => v.id === videoId) || data.items[0];
-        handleQuickAdd(video);
+      if (video) {
+        // Normalize object structure for handleQuickAdd
+        const normalizedVideo: YouTubeSearchResult = {
+          id: video.id,
+          snippet: {
+            title: video.snippet.title,
+            channelTitle: video.snippet.channelTitle,
+            thumbnails: {
+              high: { url: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '' }
+            }
+          },
+          contentDetails: video.contentDetails ? {
+            duration: video.contentDetails.duration
+          } : undefined
+        };
+        
+        await handleQuickAdd(normalizedVideo);
         setManualUrl('');
       } else {
         alert("Could not find video details. The video might be private or unavailable.");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("URL Add Error:", error);
+      alert(`URL Add Error: ${error.message || error}`);
     } finally {
       setIsFetchingUrl(false);
     }
@@ -212,8 +262,19 @@ export default function SongbookPage() {
     // If request says "save for future use", we insert into 'songs'.
 
     // 1. Generate new ID
-    const { data: maxIdData } = await supabase.from('songs').select('song_number').order('song_number', { ascending: false }).limit(1).single();
-    const nextId = (maxIdData?.song_number || 9999) + 1;
+    const { data: maxIdData, error: maxIdError } = await supabase
+      .from('songs')
+      .select('song_number')
+      .order('song_number', { ascending: false })
+      .limit(1);
+
+    if (maxIdError) {
+      console.error("Error fetching max song number:", maxIdError);
+      alert(`Failed to determine the next song number: ${maxIdError.message}`);
+      return;
+    }
+
+    const nextId = (maxIdData && maxIdData.length > 0 ? maxIdData[0].song_number : 9999) + 1;
 
     // Helper to format duration to MM:SS (handles both ISO and already formatted)
     const formatDuration = (input: string) => {
@@ -243,27 +304,49 @@ export default function SongbookPage() {
       decade: "2020s"
     };
 
-    const { data: songData, error: songError } = await supabase.from('songs').insert([newSong]).select().single();
+    const { data: savedSong, error: songError } = await upsertSongByYoutubeId<any>(newSong);
 
-    if (songError) {
+    if (songError || !savedSong) {
       console.error("Error saving song:", songError);
-      alert("Failed to save song to library.");
+      alert(`Failed to save song to library: ${songError?.message || 'No data returned'}`);
       return;
     }
 
     // 3. Add to Queue immediately
     addToQueue({
-        id: newSong.song_number,
-        title: newSong.title,
-        artist: newSong.artist,
-        youtubeId: newSong.youtube_id,
+        id: savedSong.song_number,
+        title: savedSong.title,
+        artist: savedSong.artist,
+        youtubeId: savedSong.youtube_id,
         duration: formattedDuration,
         singer: "Host" // Default singer
     }, "Host");
-    
+
     // 4. Update local library state
-    setLibrary([songData, ...library]);
-    alert(`Added #${nextId} to Library & Queue!`);
+    setLibrary([savedSong, ...library]);
+    alert(`Added #${savedSong.song_number} to Library & Queue!`);
+  };
+
+  const handleDeleteSong = async (songId: number, songNumber: number) => {
+    if (!confirm(`Delete song #${songNumber} from library?`)) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/songs?id=${songId}`, {
+        method: 'DELETE',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('Delete error:', data.error);
+        alert(`Failed to delete song: ${data.error}`);
+        return;
+      }
+      setLibrary(library.filter(s => s.id !== songId));
+      alert(`Song #${songNumber} deleted.`);
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      alert(`Failed to delete song: ${error.message}`);
+    }
   };
 
 const FALLBACK_SONGS = [
@@ -354,9 +437,9 @@ const FALLBACK_SONGS = [
         let currentId = (maxRow?.song_number || 9999);
 
         // 4. Check existing (ID & Title) to avoid duplicates
-        const { data: existing } = await supabase.from('songs').select('youtube_id, title');
-        const existingIds = new Set(existing?.map(e => e.youtube_id));
-        const existingTitles = new Set(existing?.map(e => normalizeTitle(e.title)));
+        const existing = await fetchAllRows<{ youtube_id: string; title: string }>('songs', (q) => q.select('youtube_id, title'));
+        const existingIds = new Set(existing.map(e => e.youtube_id));
+        const existingTitles = new Set(existing.map(e => normalizeTitle(e.title)));
 
         const finalInsert: any[] = [];
         songsToInsert.forEach((s) => {
@@ -374,7 +457,15 @@ const FALLBACK_SONGS = [
         });
 
         if (finalInsert.length > 0) {
-            const { error } = await supabase.from('songs').insert(finalInsert);
+            // finalInsert is already pre-filtered against existing youtube_ids/titles above,
+            // so a plain insert is the real fallback if the unique constraint
+            // (migration_songs_unique_youtube_id.sql) hasn't been applied yet -
+            // the upsert's onConflict is just defense-in-depth for that race.
+            let { error } = await supabase.from('songs').upsert(finalInsert, { onConflict: 'youtube_id', ignoreDuplicates: true });
+            if (error?.message?.includes('no unique or exclusion constraint')) {
+                const fallback = await supabase.from('songs').insert(finalInsert);
+                error = fallback.error;
+            }
             if (error) throw error;
             alert(`Success! Added ${finalInsert.length} unique songs. (Skipped ${songsToInsert.length - finalInsert.length} duplicates)`);
             fetchLibrary();
@@ -619,7 +710,9 @@ const FALLBACK_SONGS = [
                         <td className="px-6 py-4">
                             <div className="flex justify-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity">
                                 <button className="p-1.5 hover:text-primary"><Edit className="w-4 h-4" /></button>
-                                <button className="p-1.5 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                {isAdmin && (
+                                    <button onClick={() => handleDeleteSong(song.id, song.song_number)} className="p-1.5 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                )}
                             </div>
                         </td>
                     </tr>

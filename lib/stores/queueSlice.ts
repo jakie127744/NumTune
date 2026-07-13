@@ -35,22 +35,34 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
           }
       }
 
-      const code = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const { error: roomError } = await supabase.from('rooms').insert({
-          code,
-          owner_id: userId
-      });
+      // Retry on room-code collision (unique constraint on rooms.code) instead
+      // of leaving the host stuck with no room at all.
+      const maxAttempts = 5;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+          const { error: roomError } = await supabase.from('rooms').insert({
+              code,
+              owner_id: userId
+          });
 
-      if (roomError) {
-           console.error("Failed to create room:", roomError);
-           return "";
+          if (!roomError) {
+              set({ roomCode: code });
+              if (typeof window !== 'undefined') {
+                  localStorage.setItem('tunr_host_room_code', code);
+              }
+              return code;
+          }
+
+          // Only retry on a uniqueness conflict; anything else is a real failure.
+          if (roomError.code !== '23505') {
+              console.error("Failed to create room:", roomError);
+              return "";
+          }
+          console.warn(`Room code collision (attempt ${attempt + 1}/${maxAttempts}), retrying...`);
       }
 
-      set({ roomCode: code });
-      if (typeof window !== 'undefined') {
-          localStorage.setItem('tunr_host_room_code', code);
-      }
-      return code;
+      console.error("Failed to create room: exhausted retries on code collisions");
+      return "";
     } catch (e) {
       console.error("Room generation logic error:", e);
       return "";
@@ -68,10 +80,8 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
   fetchQueue: async () => {
     const { roomCode } = get();
     if (!roomCode) return;
-    
-    const { data: queueData, error } = await supabase
-      .from('queue')
-      .select(`
+
+    const baseSelect = `
         id,
         singer_name,
         status,
@@ -88,11 +98,32 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
           duration,
           thumbnail_url
         )
-      `)
+      `;
+
+    // Prefer ordering by the dedicated position column (see migration_queue_position.sql).
+    // Falls back to the old created_at/id ordering if that migration hasn't been run yet,
+    // so the queue keeps working either way instead of failing outright.
+    let { data: queueData, error } = await supabase
+      .from('queue')
+      .select(`position, ${baseSelect}`)
       .in('status', ['queued', 'playing'])
       .eq('room_code', roomCode)
+      .order('position', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
       .order('id', { ascending: true });
+
+    if (error?.code === '42703' && error.message?.includes('position')) {
+      console.warn('queue.position column not found yet (run migration_queue_position.sql) - falling back to created_at ordering.');
+      const fallback = await supabase
+        .from('queue')
+        .select(baseSelect)
+        .in('status', ['queued', 'playing'])
+        .eq('room_code', roomCode)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true });
+      queueData = fallback.data as any;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error('Error fetching queue:', error);
@@ -130,9 +161,15 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
            // Only preserve reference if key playback state matches.
            // If DB has updated isPlaying, we must use the new object (current).
            if (state.currentSong.isPlaying === current.isPlaying) {
-               // Preserve the reference BUT always pull the latest position from DB
-               // so that newly-opened Stage clients get the real host timestamp.
-               finalCurrent = { ...state.currentSong, currentPosition: current.currentPosition };
+               // Preserve the reference BUT always pull the latest position and
+               // reset-trigger count from DB, so newly-opened Stage clients get
+               // the real host timestamp and "Force Resync" isn't silently
+               // dropped just because isPlaying didn't also change this tick.
+               finalCurrent = {
+                   ...state.currentSong,
+                   currentPosition: current.currentPosition,
+                   resetTrigger: current.resetTrigger
+               };
            }
       }
 
@@ -148,22 +185,22 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
   addToQueue: async (song, singer) => {
     let songRecordId: any = null;
-    const { data: existingSong, error: findError } = await supabase
+    const { data: existingSongData, error: findError } = await supabase
         .from('songs')
         .select('id')
         .eq('song_number', song.id)
-        .single();
+        .limit(1);
     
-    if (existingSong) {
-        songRecordId = existingSong.id;
+    if (existingSongData && existingSongData.length > 0) {
+        songRecordId = existingSongData[0].id;
     } else {
-        if (findError && findError.code !== 'PGRST116') {
+        if (findError) {
              console.error("Song Lookup Error:", findError);
              alert(`Queue Failed (Song Lookup): ${findError.message}`);
              return;
         }
 
-        const { data: newSong, error: regError } = await supabase
+        const { data: newSongData, error: regError } = await supabase
             .from('songs')
             .insert({
                 song_number: song.id,
@@ -172,15 +209,14 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
                 youtube_id: song.youtubeId || "",
                 thumbnail_url: song.thumbnailUrl || ""
             })
-            .select('id')
-            .single();
+            .select('id');
         
-        if (regError) {
+        if (regError || !newSongData || newSongData.length === 0) {
             console.error("Failed to auto-register song:", regError);
-            alert(`Queue Failed (Song Register): ${regError.message}`);
+            alert(`Queue Failed (Song Register): ${regError?.message || 'No data returned'}`);
             return;
         }
-        songRecordId = newSong.id;
+        songRecordId = newSongData[0].id;
     }
 
     const { currentSong, roomCode } = get();
@@ -191,15 +227,29 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
     const shouldAutoPlay = !currentSong;
 
+    // position column requires migration_queue_position.sql; degrade gracefully if absent.
+    const { data: maxPosRow, error: maxPosError } = await supabase
+        .from('queue')
+        .select('position')
+        .eq('room_code', roomCode)
+        .order('position', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+    const positionColumnExists = !maxPosError;
+    const nextPosition = (maxPosRow?.position || 0) + 1;
+
+    const insertPayload: any = {
+        song_id: songRecordId,
+        singer_name: singer,
+        status: shouldAutoPlay ? 'playing' : 'queued',
+        is_playing: shouldAutoPlay,
+        room_code: roomCode
+    };
+    if (positionColumnExists) insertPayload.position = nextPosition;
+
     const { error: insertError } = await supabase
         .from('queue')
-        .insert({
-            song_id: songRecordId,
-            singer_name: singer,
-            status: shouldAutoPlay ? 'playing' : 'queued',
-            is_playing: shouldAutoPlay,
-            room_code: roomCode
-        });
+        .insert(insertPayload);
 
     if (insertError) {
         console.error("Failed to queue:", insertError);
@@ -242,10 +292,23 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
     if (!itemA.queueId || !itemB.queueId) return;
 
-    const { data: rows, error } = await supabase
+    // position column requires migration_queue_position.sql; degrade to the
+    // old created_at-swap behavior if that migration hasn't been run yet.
+    let { data: rows, error } = await supabase
         .from('queue')
-        .select('id, created_at')
+        .select('id, position, created_at')
         .in('id', [itemA.queueId, itemB.queueId]);
+
+    let positionColumnExists = true;
+    if (error?.code === '42703' && error.message?.includes('position')) {
+        positionColumnExists = false;
+        const fallback = await supabase
+            .from('queue')
+            .select('id, created_at')
+            .in('id', [itemA.queueId, itemB.queueId]);
+        rows = fallback.data as any;
+        error = fallback.error;
+    }
 
     if (error || !rows || rows.length !== 2) {
         console.error("Reorder failed: Could not fetch rows", error);
@@ -257,8 +320,15 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
     if (!rowA || !rowB) return;
 
-    await supabase.from('queue').update({ created_at: rowB.created_at }).eq('id', itemA.queueId);
-    await supabase.from('queue').update({ created_at: rowA.created_at }).eq('id', itemB.queueId);
+    if (positionColumnExists) {
+        const posA = (rowA as any).position ?? new Date(rowA.created_at).getTime();
+        const posB = (rowB as any).position ?? new Date(rowB.created_at).getTime();
+        await supabase.from('queue').update({ position: posB }).eq('id', itemA.queueId);
+        await supabase.from('queue').update({ position: posA }).eq('id', itemB.queueId);
+    } else {
+        await supabase.from('queue').update({ created_at: rowB.created_at }).eq('id', itemA.queueId);
+        await supabase.from('queue').update({ created_at: rowA.created_at }).eq('id', itemB.queueId);
+    }
 
     get().fetchQueue();
   },

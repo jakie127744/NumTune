@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, PlusCircle, Disc, Loader2, Music, CloudDownload, Edit, Trash2, Mic2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 
 // Types for YouTube API Response
@@ -51,8 +51,8 @@ export const SongbookPanel: React.FC = () => {
   }, []);
 
   const fetchLibrary = async () => {
-    const { data } = await supabase.from('songs').select('*').order('song_number', { ascending: false });
-    if (data) setLibrary(data);
+    const data = await fetchAllRows('songs', (q) => q.order('song_number', { ascending: false }));
+    setLibrary(data);
   };
 
   const parseDuration = (duration: string) => {
@@ -233,9 +233,9 @@ export const SongbookPanel: React.FC = () => {
       decade: "2020s"
     };
 
-    const { data: songData, error: songError } = await supabase.from('songs').insert([newSong]).select().single();
+    const { data: songData, error: songError } = await upsertSongByYoutubeId(newSong);
 
-    if (songError) {
+    if (songError || !songData) {
       console.error("Error saving song:", songError);
       alert("Failed to save song to library.");
       return;
@@ -243,17 +243,17 @@ export const SongbookPanel: React.FC = () => {
 
     // 3. Add to Queue immediately
     addToQueue({
-        id: newSong.song_number,
-        title: newSong.title,
-        artist: newSong.artist,
-        youtubeId: newSong.youtube_id,
+        id: songData.song_number,
+        title: songData.title,
+        artist: songData.artist,
+        youtubeId: songData.youtube_id,
         duration: formattedDuration,
         singer: singerInput || "Host"
     }, singerInput || "Host");
-    
+
     // 4. Update local library state
     setLibrary([songData, ...library]);
-    alert(`Added #${nextId} to Library & Queue for ${singerInput || "Host"}!`);
+    alert(`Added #${songData.song_number} to Library & Queue for ${singerInput || "Host"}!`);
   };
 
   const seedLibrary = async () => {

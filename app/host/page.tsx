@@ -307,8 +307,17 @@ export default function HostDashboard() {
                         onChange={(e) => setLookupNumber(e.target.value)}
                         onKeyDown={async (e) => {
                              if(e.key === 'Enter') {
-                                 const { data } = await supabase.from('songs').select('*').eq('song_number', parseInt(lookupNumber)).single();
-                                 if(data) setFoundSong(data); else alert("Not found");
+                                 const parsedNumber = parseInt(lookupNumber, 10);
+                                 if (Number.isNaN(parsedNumber)) {
+                                     alert("Please enter a valid song number.");
+                                     return;
+                                 }
+                                 const { data, error } = await supabase.from('songs').select('*').eq('song_number', parsedNumber).single();
+                                 if (data) setFoundSong(data);
+                                 else {
+                                     if (error) console.error("Song lookup error:", error);
+                                     alert("Not found");
+                                 }
                              }
                         }}
                      />
