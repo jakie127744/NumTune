@@ -3,20 +3,22 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-// Use service role key to bypass RLS for admin operations
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Use service role key to bypass RLS for admin operations. Created lazily
+// inside the handler (not at module scope) so a missing env var returns a
+// 500 at request time instead of throwing during Next.js's build-time
+// page-data collection, which would crash the entire deploy.
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase admin environment variables. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseServiceRoleKey);
 }
 
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  supabaseServiceRoleKey
-);
-
-async function requireAuthenticatedHost(request: Request) {
+async function requireAuthenticatedHost(supabaseAdmin: NonNullable<ReturnType<typeof getSupabaseAdmin>>, request: Request) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   if (!token) return null;
@@ -33,7 +35,12 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Song deletion is disabled in production' }, { status: 403 });
   }
 
-  const user = await requireAuthenticatedHost(request);
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: 'Missing Supabase admin environment variables.' }, { status: 500 });
+  }
+
+  const user = await requireAuthenticatedHost(supabaseAdmin, request);
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized: host sign-in required' }, { status: 401 });
   }

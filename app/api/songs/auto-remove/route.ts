@@ -3,14 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// Created lazily inside the handler (not at module scope) so a missing env
+// var returns a 500 at request time instead of throwing during Next.js's
+// build-time page-data collection, which would crash the entire deploy.
+function getSupabaseAdmin() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('Missing Supabase admin environment variables. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  if (!supabaseUrl || !supabaseServiceRoleKey) {
+    return null;
+  }
+
+  return createClient(supabaseUrl, supabaseServiceRoleKey);
 }
-
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
 // Auto-removes a song by youtube_id when the Stage reports it broken during
 // playback (embedding disabled, removed, private, or not found). Unlike
@@ -20,6 +25,11 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 // YouTube Data API before deleting, so a malicious client calling this
 // directly can't use it to wipe arbitrary library entries.
 export async function POST(request: Request) {
+  const supabaseAdmin = getSupabaseAdmin();
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: 'Missing Supabase admin environment variables.' }, { status: 500 });
+  }
+
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
   if (!token) {
