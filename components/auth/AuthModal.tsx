@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, Loader2, Music, ChevronDown, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
+import { toast } from '@/lib/toast';
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -70,13 +71,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 if (session?.user?.is_anonymous) {
                     const { error } = await supabase.auth.updateUser({ email, password });
                     if (error) throw error;
-                    alert('Account claimed! Your current room is now protected under this login.');
+                    toast.success('Account claimed! Your current room is now protected under this login.');
                     router.push('/host');
                     onClose();
                 } else {
                     const { error } = await supabase.auth.signUp({ email, password });
                     if (error) throw error;
-                    alert('Account created! Check your email to confirm, then sign in.');
+                    toast.success('Account created! Check your email to confirm, then sign in.');
                     setIsLogin(true);
                 }
             }

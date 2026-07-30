@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, PlusCircle, Disc, Loader2, Music, CloudDownload, Edit, Trash2, Mic2 } from 'lucide-react';
 import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
+import { toast } from '@/lib/toast';
 
 // Types for YouTube API Response
 interface YouTubeSearchResult {
@@ -26,7 +27,6 @@ export const SongbookPanel: React.FC = () => {
   const [searchResults, setSearchResults] = useState<YouTubeSearchResult[]>([]);
   const [libraryResults, setLibraryResults] = useState<any[]>([]); 
   const [isSearching, setIsSearching] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
   const [library, setLibrary] = useState<any[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState('');
@@ -117,30 +117,15 @@ export const SongbookPanel: React.FC = () => {
       
       const query = encodeURIComponent(cleanTerm);
       
-      // Try No-API Search First
       const searchRes = await fetch(`/api/yt-search?q=${query}`);
       const searchData = await searchRes.json();
-      
+
       if (searchData.items?.length) {
           const filtered = searchData.items.filter((video: any) => {
             const durationSec = parseDuration(video.contentDetails.duration);
             return durationSec <= 600 && durationSec >= 30;
           });
           setSearchResults(filtered);
-          return;
-      }
-
-      // Fallback to Official API if scraper fails or returns nothing
-      const fallbackRes = await fetch(
-        `/api/youtube?endpoint=search&part=snippet&type=video&videoEmbeddable=true&maxResults=20&q=${query}`
-      );
-      const fallbackData = await fallbackRes.json();
-      
-      if (fallbackData.items?.length) {
-          const videoIds = fallbackData.items.map((i: any) => i.id.videoId).join(',');
-          const videoRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoIds}`);
-          const videoData = await videoRes.json();
-          setSearchResults(videoData.items || []);
       } else {
           setSearchResults([]);
       }
@@ -161,7 +146,7 @@ export const SongbookPanel: React.FC = () => {
       const videoId = (match && match[2].length === 11) ? match[2] : null;
 
       if (!videoId) {
-        alert("Invalid YouTube URL. Please paste a full YouTube link.");
+        toast.error("Invalid YouTube URL. Please paste a full YouTube link.");
         return;
       }
 
@@ -174,7 +159,7 @@ export const SongbookPanel: React.FC = () => {
         handleQuickAdd(video);
         setManualUrl('');
       } else {
-        alert("Could not find video details. The video might be private or unavailable.");
+        toast.error("Could not find video details. The video might be private or unavailable.");
       }
     } catch (error) {
       console.error("URL Add Error:", error);
@@ -197,7 +182,7 @@ export const SongbookPanel: React.FC = () => {
             duration: "00:00",
             singer: singerInput || "Host"
         }, singerInput || "Host");
-        alert(`Song is already in library (#${existingSong.song_number})! Added to Queue for ${singerInput || "Host"}.`);
+        toast.success(`Song is already in library (#${existingSong.song_number})! Added to Queue for ${singerInput || "Host"}.`);
         return; 
     }
 
@@ -237,7 +222,7 @@ export const SongbookPanel: React.FC = () => {
 
     if (songError || !songData) {
       console.error("Error saving song:", songError);
-      alert("Failed to save song to library.");
+      toast.error("Failed to save song to library.");
       return;
     }
 
@@ -253,45 +238,7 @@ export const SongbookPanel: React.FC = () => {
 
     // 4. Update local library state
     setLibrary([songData, ...library]);
-    alert(`Added #${songData.song_number} to Library & Queue for ${singerInput || "Host"}!`);
-  };
-
-  const seedLibrary = async () => {
-    setIsSeeding(true);
-    let songsToInsert: any[] = [];
-    
-    try {
-        const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-        const SOURCES = ["Atomic Karaoke", "PROmusicCOVER", "CoversPH", "Singstar Karaoke"];
-        const selectedSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=50&q=${encodeURIComponent(selectedSource)}&order=viewCount&key=${API_KEY}`);
-        const data = await res.json();
-        
-        if (data.error) throw new Error(data.error.message); 
-        if (!data.items?.length) throw new Error("No songs found");
-
-        const videoIds = data.items.map((i:any) => i.id.videoId).join(',');
-        const detailsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${videoIds}&key=${API_KEY}`);
-        const detailsData = await detailsRes.json();
-
-        songsToInsert = detailsData.items.map((v:any) => ({
-            title: v.snippet.title,
-            artist: v.snippet.channelTitle,
-            youtube_id: v.id,
-            thumbnail_url: v.snippet.thumbnails?.high?.url || "",
-            genre: "Pop",
-            decade: "2020s"
-        }));
-
-    } catch (e: any) {
-        console.warn("Seeding failed", e);
-    }
-
-    // Insert logic... (Simplified for this component version)
-    // We can assume seeding is a rare admin task, primarily we want SEARCH.
-    // ...
-    setIsSeeding(false);
+    toast.success(`Added #${songData.song_number} to Library & Queue for ${singerInput || "Host"}!`);
   };
 
   return (
@@ -375,7 +322,7 @@ export const SongbookPanel: React.FC = () => {
                                                 duration: "00:00",
                                                 singer: singerInput || "Host"
                                             }, singerInput || "Host");
-                                            alert(`Added #${song.song_number} to Queue for ${singerInput || "Host"}!`);
+                                            toast.success(`Added #${song.song_number} to Queue for ${singerInput || "Host"}!`);
                                         }}
                                         className="p-2 rounded-full bg-green-500/10 text-green-400 hover:bg-green-500 hover:text-white transition-colors"
                                     >

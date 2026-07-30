@@ -13,6 +13,8 @@ import { QueueList } from '@/components/host/QueueList';
 import { SongbookPanel } from '@/components/host/SongbookPanel';
 import { ConnectQR } from '@/components/host/ConnectQR';
 import { supabase } from '@/lib/supabase';
+import { toast } from '@/lib/toast';
+import { confirmDialog } from '@/lib/confirm';
 
 
 export default function HostDashboard() {
@@ -97,8 +99,8 @@ export default function HostDashboard() {
         {/* Helper Actions */}
         <div className="hidden md:flex items-center gap-4 bg-white/5 p-1.5 rounded-full border border-white/5">
             <button 
-                onClick={() => {
-                    if (confirm("End current session? This will disconnect everyone.")) {
+                onClick={async () => {
+                    if (await confirmDialog("End current session? This will disconnect everyone.")) {
                         clearQueue();
                         generateRoomCode();
                     }
@@ -158,7 +160,7 @@ export default function HostDashboard() {
                                             setRoomCode(newCode);
                                             localStorage.setItem('tunr_host_room_code', newCode);
                                         } else {
-                                            alert("⚠️ This Room Code is taken!");
+                                            toast.error("This Room Code is taken!");
                                             setTempRoomCode(roomCode);
                                         }
                                     } else {
@@ -170,7 +172,7 @@ export default function HostDashboard() {
                                             setRoomCode(newCode);
                                             localStorage.setItem('tunr_host_room_code', newCode);
                                         } else {
-                                            alert("Failed to create room.");
+                                            toast.error("Failed to create room.");
                                             setTempRoomCode(roomCode);
                                         }
                                     }
@@ -309,14 +311,14 @@ export default function HostDashboard() {
                              if(e.key === 'Enter') {
                                  const parsedNumber = parseInt(lookupNumber, 10);
                                  if (Number.isNaN(parsedNumber)) {
-                                     alert("Please enter a valid song number.");
+                                     toast.error("Please enter a valid song number.");
                                      return;
                                  }
                                  const { data, error } = await supabase.from('songs').select('*').eq('song_number', parsedNumber).single();
                                  if (data) setFoundSong(data);
                                  else {
                                      if (error) console.error("Song lookup error:", error);
-                                     alert("Not found");
+                                     toast.error("Not found");
                                  }
                              }
                         }}

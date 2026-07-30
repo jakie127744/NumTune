@@ -14,8 +14,11 @@ export default function Home() {
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user || session.user.is_anonymous) {
-        // Auto-open the login modal as requested if not logged in
+      if (!session?.user) {
+        // Auto-open the login modal as requested if not logged in.
+        // Anonymous sessions (created the moment a host starts a session)
+        // count as "logged in" here so returning to Home doesn't nag an
+        // active host with a sign-in prompt every time.
         setIsAuthModalOpen(true);
       }
     };

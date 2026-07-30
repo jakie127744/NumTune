@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import { TunrStore, QueueSlice, Song } from './types';
 import { supabase } from '../supabase';
+import { toast } from '../toast';
 
 export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (set, get) => ({
   queue: [],
@@ -22,7 +23,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
       const userId = session?.user?.id;
 
       if (!userId) {
-          alert("Could not initialize session auth.");
+          toast.error("Could not initialize session auth.");
           return "";
       }
 
@@ -196,7 +197,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
     } else {
         if (findError) {
              console.error("Song Lookup Error:", findError);
-             alert(`Queue Failed (Song Lookup): ${findError.message}`);
+             toast.error(`Queue Failed (Song Lookup): ${findError.message}`);
              return;
         }
 
@@ -213,7 +214,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
         
         if (regError || !newSongData || newSongData.length === 0) {
             console.error("Failed to auto-register song:", regError);
-            alert(`Queue Failed (Song Register): ${regError?.message || 'No data returned'}`);
+            toast.error(`Queue Failed (Song Register): ${regError?.message || 'No data returned'}`);
             return;
         }
         songRecordId = newSongData[0].id;
@@ -221,7 +222,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
     const { currentSong, roomCode } = get();
     if (!roomCode) {
-        alert("Queue Failed: No Room Code active. Please refresh.");
+        toast.error("Queue Failed: No Room Code active. Please refresh.");
         return;
     }
 
@@ -253,7 +254,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
     if (insertError) {
         console.error("Failed to queue:", insertError);
-        alert(`Queue Failed (Insert): ${insertError.message}`);
+        toast.error(`Queue Failed (Insert): ${insertError.message}`);
     } else {
         get().fetchQueue();
     }
@@ -263,7 +264,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
     const { error } = await supabase.from('queue').delete().eq('id', queueId);
     if (error) {
         console.error("Delete failed:", error);
-        alert("Failed to delete! Check database policies.");
+        toast.error("Failed to delete! Check database policies.");
     }
     get().fetchQueue();
   },

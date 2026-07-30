@@ -5,6 +5,8 @@ import { Search, Music, Mic2, Star, Smartphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import { supabase, fetchAllRows } from '@/lib/supabase';
+import { toast } from '@/lib/toast';
+import { confirmDialog } from '@/lib/confirm';
 
 export default function GuestPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -131,9 +133,9 @@ export default function GuestPage() {
                 </div>
             </div>
             <div className="flex items-center gap-3">
-                <button 
-                    onClick={() => {
-                        if(confirm("Leave this room?")) {
+                <button
+                    onClick={async () => {
+                        if(await confirmDialog("Leave this room?")) {
                             localStorage.removeItem('tunr_guest_room');
                             setRoomCode('');
                             setHasJoined(false);
@@ -216,7 +218,7 @@ export default function GuestPage() {
                                     if (!session) {
                                         const { error: authError } = await supabase.auth.signInAnonymously();
                                         if (authError) {
-                                            alert("Couldn't connect. Please refresh and try again.");
+                                            toast.error("Couldn't connect. Please refresh and try again.");
                                             setIsQueuing(false);
                                             return;
                                         }
@@ -226,7 +228,7 @@ export default function GuestPage() {
                                     const { data: song, error } = await supabase.from('songs').select('id, title, artist').eq('song_number', songCode).single();
 
                                     if (error || !song) {
-                                        alert("Song not found! Please check the code in the book.");
+                                        toast.error("Song not found! Please check the code in the book.");
                                         setIsQueuing(false);
                                         return;
                                     }
@@ -242,7 +244,7 @@ export default function GuestPage() {
                                         .limit(1);
 
                                     if (dupe && dupe.length > 0) {
-                                        alert(`"${song.title}" is already in the queue for ${singerName}.`);
+                                        toast.info(`"${song.title}" is already in the queue for ${singerName}.`);
                                         setSongCode('');
                                         setIsQueuing(false);
                                         return;
@@ -259,13 +261,13 @@ export default function GuestPage() {
                                     if (queueError) {
                                         throw queueError;
                                     } else {
-                                        alert(`🎯 Success! "${song.title}" is now in line!`);
+                                        toast.success(`🎯 Success! "${song.title}" is now in line!`);
                                         setSongCode('');
                                         // Keep singer name for fast multi-song queuing
                                     }
                                 } catch (err) {
                                     console.error(err);
-                                    alert("Oops! Connection lost. Try again.");
+                                    toast.error("Oops! Connection lost. Try again.");
                                 } finally {
                                     setIsQueuing(false);
                                 }
@@ -279,9 +281,9 @@ export default function GuestPage() {
                             )}
                         </button>
 
-                        <button 
-                            onClick={() => {
-                                if(confirm("Leave this room?")) {
+                        <button
+                            onClick={async () => {
+                                if(await confirmDialog("Leave this room?")) {
                                     localStorage.removeItem('tunr_guest_room');
                                     window.location.reload();
                                 }

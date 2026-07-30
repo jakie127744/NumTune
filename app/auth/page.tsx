@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, Loader2, Music, ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
+import { toast } from '@/lib/toast';
 
 export default function AuthPage() {
     const router = useRouter();
@@ -65,12 +66,12 @@ export default function AuthPage() {
                 if (session?.user?.is_anonymous) {
                     const { error } = await supabase.auth.updateUser({ email, password });
                     if (error) throw error;
-                    alert('Account claimed! Your current room is now protected under this login.');
+                    toast.success('Account claimed! Your current room is now protected under this login.');
                     router.push('/host');
                 } else {
                     const { error } = await supabase.auth.signUp({ email, password });
                     if (error) throw error;
-                    alert('Account created! Check your email to confirm, then sign in.');
+                    toast.success('Account created! Check your email to confirm, then sign in.');
                     setIsLogin(true);
                 }
             }

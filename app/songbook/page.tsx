@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Search, PlusCircle, Edit, Trash2, Disc, Loader2, Music, Mic2, CloudDownload, Link as LinkIcon } from 'lucide-react';
 import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
+import { toast } from '@/lib/toast';
+import { confirmDialog } from '@/lib/confirm';
 
 // Types for YouTube API Response
 interface YouTubeSearchResult {
@@ -39,6 +41,7 @@ export default function SongbookPage() {
 
   // Store actions
   const addToQueue = useTunrStore((state) => state.addToQueue);
+  const roomCode = useTunrStore((state) => state.roomCode);
 
   // Load Library & Default Recommendations on Mount
   useEffect(() => {
@@ -130,30 +133,15 @@ export default function SongbookPage() {
       
       const query = encodeURIComponent(cleanTerm);
       
-      // Try No-API Search First
       const searchRes = await fetch(`/api/yt-search?q=${query}`);
       const searchData = await searchRes.json();
-      
+
       if (searchData.items?.length) {
           const filtered = searchData.items.filter((video: any) => {
             const durationSec = parseDuration(video.contentDetails.duration);
             return durationSec <= 600 && durationSec >= 30;
           });
           setSearchResults(filtered);
-          return;
-      }
-
-      // Fallback to Official API if scraper fails or returns nothing
-      const fallbackRes = await fetch(
-        `/api/youtube?endpoint=search&part=snippet&type=video&videoEmbeddable=true&maxResults=20&q=${query}`
-      );
-      const fallbackData = await fallbackRes.json();
-      
-      if (fallbackData.items?.length) {
-          const videoIds = fallbackData.items.map((i: any) => i.id.videoId).join(',');
-          const videoRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoIds}`);
-          const videoData = await videoRes.json();
-          setSearchResults(videoData.items || []);
       } else {
           setSearchResults([]);
       }
@@ -183,34 +171,18 @@ export default function SongbookPage() {
       const videoId = extractVideoId(manualUrl);
 
       if (!videoId) {
-        alert("Invalid YouTube URL. Please paste a full YouTube link or an 11-character video ID.");
+        toast.error("Invalid YouTube URL. Please paste a full YouTube link or an 11-character video ID.");
         return;
       }
 
       let video: any = null;
 
-      // 1. Try fetching via official API proxy first for accuracy
-      try {
-        const apiRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoId}`);
-        if (apiRes.ok) {
-          const apiData = await apiRes.json();
-          if (apiData.items?.length) {
-            video = apiData.items[0];
-          }
-        }
-      } catch (apiErr) {
-        console.error("Official API fetch failed, falling back to yt-search:", apiErr);
+      const res = await fetch(`/api/yt-search?q=${videoId}`);
+      const data = await res.json();
+      if (data.items?.length) {
+        video = data.items.find((v: any) => v.id === videoId) || data.items[0];
       }
 
-      // 2. Fallback to No-API route (yt-search scraper)
-      if (!video) {
-        const res = await fetch(`/api/yt-search?q=${videoId}`);
-        const data = await res.json();
-        if (data.items?.length) {
-          video = data.items.find((v: any) => v.id === videoId) || data.items[0];
-        }
-      }
-      
       if (video) {
         // Normalize object structure for handleQuickAdd
         const normalizedVideo: YouTubeSearchResult = {
@@ -230,11 +202,11 @@ export default function SongbookPage() {
         await handleQuickAdd(normalizedVideo);
         setManualUrl('');
       } else {
-        alert("Could not find video details. The video might be private or unavailable.");
+        toast.error("Could not find video details. The video might be private or unavailable.");
       }
     } catch (error: any) {
       console.error("URL Add Error:", error);
-      alert(`URL Add Error: ${error.message || error}`);
+      toast.error(`URL Add Error: ${error.message || error}`);
     } finally {
       setIsFetchingUrl(false);
     }
@@ -246,15 +218,19 @@ export default function SongbookPage() {
 
     if (existingSong) {
         // Reuse existing
-        addToQueue({
-            id: existingSong.song_number,
-            title: existingSong.title,
-            artist: existingSong.artist,
-            youtubeId: existingSong.youtube_id,
-            duration: "00:00",
-            singer: "Host"
-        }, "Host");
-        alert(`Song is already in library (#${existingSong.song_number})! Added to Queue.`);
+        if (roomCode) {
+            addToQueue({
+                id: existingSong.song_number,
+                title: existingSong.title,
+                artist: existingSong.artist,
+                youtubeId: existingSong.youtube_id,
+                duration: "00:00",
+                singer: "Host"
+            }, "Host");
+            toast.success(`Song is already in library (#${existingSong.song_number})! Added to Queue.`);
+        } else {
+            toast.info(`Song is already in library (#${existingSong.song_number}).`);
+        }
         return; // Done
     }
 
@@ -270,7 +246,7 @@ export default function SongbookPage() {
 
     if (maxIdError) {
       console.error("Error fetching max song number:", maxIdError);
-      alert(`Failed to determine the next song number: ${maxIdError.message}`);
+      toast.error(`Failed to determine the next song number: ${maxIdError.message}`);
       return;
     }
 
@@ -308,27 +284,31 @@ export default function SongbookPage() {
 
     if (songError || !savedSong) {
       console.error("Error saving song:", songError);
-      alert(`Failed to save song to library: ${songError?.message || 'No data returned'}`);
+      toast.error(`Failed to save song to library: ${songError?.message || 'No data returned'}`);
       return;
     }
 
-    // 3. Add to Queue immediately
-    addToQueue({
-        id: savedSong.song_number,
-        title: savedSong.title,
-        artist: savedSong.artist,
-        youtubeId: savedSong.youtube_id,
-        duration: formattedDuration,
-        singer: "Host" // Default singer
-    }, "Host");
+    // 3. Add to Queue immediately (only if a room is active)
+    if (roomCode) {
+        addToQueue({
+            id: savedSong.song_number,
+            title: savedSong.title,
+            artist: savedSong.artist,
+            youtubeId: savedSong.youtube_id,
+            duration: formattedDuration,
+            singer: "Host" // Default singer
+        }, "Host");
+    }
 
     // 4. Update local library state
     setLibrary([savedSong, ...library]);
-    alert(`Added #${savedSong.song_number} to Library & Queue!`);
+    toast.success(roomCode
+        ? `Added #${savedSong.song_number} to Library & Queue!`
+        : `Added #${savedSong.song_number} to Library!`);
   };
 
   const handleDeleteSong = async (songId: number, songNumber: number) => {
-    if (!confirm(`Delete song #${songNumber} from library?`)) return;
+    if (!(await confirmDialog(`Delete song #${songNumber} from library?`))) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/songs?id=${songId}`, {
@@ -338,14 +318,14 @@ export default function SongbookPage() {
       const data = await res.json();
       if (!res.ok) {
         console.error('Delete error:', data.error);
-        alert(`Failed to delete song: ${data.error}`);
+        toast.error(`Failed to delete song: ${data.error}`);
         return;
       }
       setLibrary(library.filter(s => s.id !== songId));
-      alert(`Song #${songNumber} deleted.`);
+      toast.success(`Song #${songNumber} deleted.`);
     } catch (error: any) {
       console.error('Delete error:', error);
-      alert(`Failed to delete song: ${error.message}`);
+      toast.error(`Failed to delete song: ${error.message}`);
     }
   };
 
@@ -367,8 +347,6 @@ const FALLBACK_SONGS = [
     let songsToInsert: any[] = [];
     
     try {
-        const API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-        
         // Curated List of Sources
         const SOURCES = [
             "Atomic Karaoke",
@@ -383,23 +361,19 @@ const FALLBACK_SONGS = [
         
         // Pick a random source each time to diversify
         const selectedSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-        console.log(`Attempting to seed via YouTube API (${selectedSource})...`);
+        console.log(`Attempting to seed via yt-search (${selectedSource})...`);
 
-        // 1. Fetch Popular Karaoke from selected source
-        const res = await fetch(`/api/youtube?endpoint=search&part=snippet&type=video&videoEmbeddable=true&maxResults=50&q=${encodeURIComponent(selectedSource)}&order=viewCount`);
+        // 1. Fetch Popular Karaoke from selected source (no-API scraper)
+        const res = await fetch(`/api/yt-search?q=${encodeURIComponent(selectedSource)}`);
         const data = await res.json();
-        
-        if (data.error) throw new Error(data.error.message); 
+
+        if (data.error) throw new Error(data.error);
         if (!data.items?.length) throw new Error("No songs found");
 
-        const videoIds = data.items.map((i:any) => i.id.videoId).join(',');
-        const detailsRes = await fetch(`/api/youtube?endpoint=videos&part=snippet,contentDetails&id=${videoIds}`);
-        const detailsData = await detailsRes.json();
-
         // 2. Filter valid songs (1m - 7m)
-        const validVideos = detailsData.items.filter((v:any) => {
+        const validVideos = data.items.filter((v:any) => {
              const d = parseDuration(v.contentDetails.duration);
-             return d >= 60 && d <= 420; 
+             return d >= 60 && d <= 420;
         });
 
         // Map to DB structure
@@ -407,13 +381,13 @@ const FALLBACK_SONGS = [
             title: v.snippet.title,
             artist: v.snippet.channelTitle,
             youtube_id: v.id,
-            thumbnail_url: v.snippet.thumbnails?.high?.url || v.snippet.thumbnails?.medium?.url || "",
+            thumbnail_url: v.snippet.thumbnails?.high?.url || "",
             genre: "Pop",
             decade: "2020s"
         }));
 
     } catch (e: any) {
-        console.warn("YouTube API Validation Failed (likely quota). Switching to Fallback List.", e);
+        console.warn("YouTube search failed. Switching to Fallback List.", e);
         // Fallback to hardcoded list logic
         songsToInsert = FALLBACK_SONGS.map(s => ({
             title: s.title,
@@ -427,7 +401,7 @@ const FALLBACK_SONGS = [
 
     try {
         if (songsToInsert.length === 0) {
-            alert("Unexpected error: No songs explicitly available to insert.");
+            toast.error("Unexpected error: No songs explicitly available to insert.");
             setIsSeeding(false);
             return;
         }
@@ -467,15 +441,15 @@ const FALLBACK_SONGS = [
                 error = fallback.error;
             }
             if (error) throw error;
-            alert(`Success! Added ${finalInsert.length} unique songs. (Skipped ${songsToInsert.length - finalInsert.length} duplicates)`);
+            toast.success(`Success! Added ${finalInsert.length} unique songs. (Skipped ${songsToInsert.length - finalInsert.length} duplicates)`);
             fetchLibrary();
         } else {
-            alert("No new songs to add (all duplicates skipped).");
+            toast.info("No new songs to add (all duplicates skipped).");
         }
 
     } catch (dbError: any) {
         console.error("Database Error:", dbError);
-        alert("Database error: " + (dbError.message || "Unknown"));
+        toast.error("Database error: " + (dbError.message || "Unknown"));
     } finally {
         setIsSeeding(false);
     }
@@ -617,7 +591,7 @@ const FALLBACK_SONGS = [
                                         duration: "00:00",
                                         singer: "Host"
                                     }, "Host");
-                                    alert("Added to Queue!");
+                                    toast.success("Added to Queue!");
                                 }}
                                 className="w-full mt-2 py-2 px-4 bg-green-600 hover:bg-green-500 text-white rounded-full text-sm font-bold flex items-center justify-center gap-2"
                             >

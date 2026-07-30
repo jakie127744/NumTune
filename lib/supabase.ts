@@ -34,11 +34,13 @@ export async function fetchAllRows<T = any>(
   return rows;
 }
 
-// Removes a song from the library by youtube_id (e.g. when YouTube reports it
-// as restricted/removed) so it's never queued/selected again. Requires an
-// authenticated session (anonymous counts) - calls the service-role-backed
-// /api/songs route rather than deleting client-side, since songs has no
-// client-facing delete RLS policy.
+// Removes a song from the library by youtube_id when YouTube reports it as
+// restricted/removed during playback, so it's never queued/selected again.
+// Requires an authenticated session (anonymous counts) - calls
+// /api/songs/auto-remove, which independently re-verifies via the YouTube
+// Data API that the video is actually broken before deleting. This is
+// intentionally NOT the admin/dev-only /api/songs DELETE route: this needs
+// to run from an anonymous Stage session in production too.
 export async function removeSongByYoutubeId(youtubeId: string): Promise<boolean> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -49,11 +51,17 @@ export async function removeSongByYoutubeId(youtubeId: string): Promise<boolean>
     const { data: { session: freshSession } } = await supabase.auth.getSession();
     if (!freshSession?.access_token) return false;
 
-    const res = await fetch(`/api/songs?youtube_id=${encodeURIComponent(youtubeId)}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${freshSession.access_token}` },
+    const res = await fetch('/api/songs/auto-remove', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${freshSession.access_token}`,
+      },
+      body: JSON.stringify({ youtubeId }),
     });
-    return res.ok;
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data.deleted;
   } catch (e) {
     console.error('removeSongByYoutubeId failed:', e);
     return false;

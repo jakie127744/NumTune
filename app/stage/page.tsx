@@ -9,6 +9,7 @@ const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any
 
 import { useTunrStore } from '@/lib/store';
 import { supabase, removeSongByYoutubeId } from '@/lib/supabase';
+import { toast, dismissAllToasts } from '@/lib/toast';
 
 export default function MainStage() {
   // OPTIMIZED SELECTORS
@@ -29,6 +30,33 @@ export default function MainStage() {
   const [tempCode, setTempCode] = React.useState('');
   const [syncLogs, setSyncLogs] = React.useState<string[]>([]);
   const [showDebug, setShowDebug] = React.useState(false);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const stageRef = React.useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      stageRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  React.useEffect(() => {
+    const handleChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleChange);
+    return () => document.removeEventListener('fullscreenchange', handleChange);
+  }, []);
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const addLog = (msg: string) => {
     setSyncLogs(prev => [msg, ...prev].slice(0, 5));
@@ -42,6 +70,9 @@ export default function MainStage() {
   React.useEffect(() => {
      hasSyncedRef.current = false;
      lastSyncTimeRef.current = 0;
+     // Clear any lingering "Track restricted" toast from the previous song
+     // the moment we actually move on, rather than waiting on its own timer.
+     dismissAllToasts();
   }, [currentSong?.id]);
 
   // ============================================================
@@ -376,6 +407,7 @@ export default function MainStage() {
                  // 101/150 = embedding restricted, 100 = video removed/private/not found
                  if ((code === 100 || code === 101 || code === 150) && !errorHandled) {
                      errorHandled = true;
+                     toast.error('Track restricted. Skipping...');
                      const restrictedYoutubeId = currentSong?.youtubeId;
                      useTunrStore.getState().playNext();
                      if (restrictedYoutubeId) {
@@ -392,7 +424,7 @@ export default function MainStage() {
   }, [currentSong?.id]);
 
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0c0811] text-white font-display">
+    <div ref={stageRef} className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0c0811] text-white font-display">
       {/* Background Gradient */}
       <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,#191022_0%,#0c0811_100%)] pointer-events-none" />
 
@@ -625,13 +657,13 @@ export default function MainStage() {
 
       {/* Projection & Mute Label (Always visible/useful) */}
       <div className="absolute top-28 right-10 flex flex-col items-end gap-2 pr-2 z-30 pointer-events-auto">
-             <button 
+             <button
                 onClick={() => setIsLocalMuted(!isLocalMuted)}
                 title={isLocalMuted ? "Unmute Stage" : "Mute Stage"}
                 className={cn(
                     "w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border",
-                    isLocalMuted 
-                        ? "bg-red-500/20 text-red-500 border-red-500/30" 
+                    isLocalMuted
+                        ? "bg-red-500/20 text-red-500 border-red-500/30"
                         : "bg-white/5 text-primary border-white/10 hover:bg-white/10"
                 )}
              >
@@ -640,6 +672,13 @@ export default function MainStage() {
              <span className="text-[8px] font-black uppercase tracking-widest text-primary/60">
                  Projection {isLocalMuted ? '(MUTED)' : ''}
              </span>
+             <button
+                onClick={toggleFullscreen}
+                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                className="w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border bg-white/5 text-primary border-white/10 hover:bg-white/10 mt-2"
+             >
+                 <Maximize className="w-5 h-5" />
+             </button>
       </div>
 
       {/* Connection Indicator removed as it's now in the header */}

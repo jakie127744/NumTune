@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Spline_Sans } from "next/font/google";
 import "./globals.css";
+import { Toaster } from "@/components/Toaster";
+import { ConfirmDialogHost } from "@/components/ConfirmDialog";
 
 const splineSans = Spline_Sans({
   variable: "--font-spline-sans",
@@ -41,6 +43,8 @@ export default function RootLayout({
         className={`${splineSans.variable} font-display antialiased bg-background-light dark:bg-background-dark text-white`}
       >
         {children}
+        <Toaster />
+        <ConfirmDialogHost />
       </body>
     </html>
   );

@@ -6,6 +6,7 @@ import {
 import { useTunrStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { supabase, removeSongByYoutubeId } from '@/lib/supabase';
+import { toast, dismissAllToasts } from '@/lib/toast';
 
 /**
  * HostPlayer
@@ -69,6 +70,10 @@ export const HostPlayer: React.FC = () => {
     useEffect(() => {
         if (!currentSong?.youtubeId) return;
 
+        // Clear any lingering "Track restricted" toast from the previous
+        // song now that we're actually moving on.
+        dismissAllToasts();
+
         // Ensure YT API is loaded
         if (!(window as any).YT) {
             const tag = document.createElement('script');
@@ -113,6 +118,7 @@ export const HostPlayer: React.FC = () => {
                         // 101/150 = embedding restricted, 100 = video removed/private/not found
                         if ((e.data === 100 || e.data === 101 || e.data === 150) && !errorHandled) {
                             errorHandled = true;
+                            toast.error('Track restricted. Skipping...');
                             const restrictedYoutubeId = currentSong?.youtubeId;
                             useTunrStore.getState().playNext();
                             if (restrictedYoutubeId) {

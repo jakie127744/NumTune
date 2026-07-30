@@ -1,6 +1,7 @@
 import { StateCreator } from 'zustand';
 import { TunrStore, PlayerSlice } from './types';
 import { supabase } from '../supabase';
+import { toast } from '../toast';
 
 export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (set, get) => ({
   isPlaying: false,
@@ -33,9 +34,9 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
     if (error) {
         console.error("Error advancing queue:", error);
         if (error.message?.includes('CONTROL_ERROR')) {
-            alert("CONTROL_ERROR: You do not own this room. Please create a NEW SESSION.");
+            toast.error("You do not own this room. Please create a NEW SESSION.");
         } else {
-            alert(`Next Song Failed: ${error.message}`);
+            toast.error(`Next Song Failed: ${error.message}`);
         }
         set({ isPlaying: false });
         return;
@@ -72,7 +73,7 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
 
     if (stopError) {
         console.error("Error stopping playback:", stopError);
-        alert(`Next Song Failed (Stop): ${stopError.message}`);
+        toast.error(`Next Song Failed (Stop): ${stopError.message}`);
         set({ isPlaying: false });
         return;
     }
@@ -93,7 +94,7 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
 
     if (fetchError) {
         console.error("Error fetching next:", fetchError);
-        alert(`Next Song Failed (Fetch): ${fetchError.message}`);
+        toast.error(`Next Song Failed (Fetch): ${fetchError.message}`);
         set({ isPlaying: false });
         return;
     }
@@ -113,7 +114,7 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
 
         if (startError) {
              console.error("Error starting next:", startError);
-             alert(`Next Song Failed (Start): ${startError.message}`);
+             toast.error(`Next Song Failed (Start): ${startError.message}`);
              set({ isPlaying: false, currentSong: null });
         }
     } else {
@@ -163,7 +164,7 @@ export const createPlayerSlice: StateCreator<TunrStore, [], [], PlayerSlice> = (
 
         if (error) {
              console.error("Previous Song Error:", error);
-             alert(`Play Previous Failed: ${error.message}`);
+             toast.error(`Play Previous Failed: ${error.message}`);
         }
     }
 
