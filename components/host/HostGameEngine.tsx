@@ -58,20 +58,27 @@ export const HostGameEngine: React.FC = () => {
             <div style={{ width: 320, height: 180 }}>
             <ReactPlayerAny
                 key={`engine-${currentSong.id}`}
-                url={`https://www.youtube.com/watch?v=${currentSong.youtubeId}`}
+                src={`https://www.youtube.com/watch?v=${currentSong.youtubeId}`}
                 playing={Boolean(isPlaying)}
-                volume={useTunrStore.getState().hostAudioMuted ? 0 : volume / 100}
+                // Always muted: this engine only exists to track position and detect
+                // end-of-song, never to be heard (HostPlayer/Stage carry the audible
+                // output). Browsers block autoplay-with-sound on a hidden, un-interacted
+                // element, so leaving this unmuted silently stalls the player at 0:00
+                // forever - onEnded never fires and the queue never auto-advances.
+                muted={true}
+                volume={0}
                 width="100%"
                 height="100%"
                 onEnded={() => {
                     console.log("GameEngine: Song Ended. Triggering Next.");
                     playNext();
                 }}
-                onProgress={(p: any) => {
-                    if (Math.floor(p.playedSeconds) % 10 === 0 && p.playedSeconds > 0) {
-                        console.log('ENGINE_PROGRESS:', Math.floor(p.playedSeconds), 's');
+                onTimeUpdate={(e: any) => {
+                    const playedSeconds = e.target.currentTime;
+                    if (Math.floor(playedSeconds) % 10 === 0 && playedSeconds > 0) {
+                        console.log('ENGINE_PROGRESS:', Math.floor(playedSeconds), 's');
                     }
-                    setElapsed(p.playedSeconds);
+                    setElapsed(playedSeconds);
                 }}
                 onError={(e: any) => {
                     console.error("GameEngine Player Error:", e);
@@ -81,14 +88,14 @@ export const HostGameEngine: React.FC = () => {
                 }}
                 config={{
                     youtube: {
-                        playerVars: { 
-                            playsinline: 1, 
+                        playerVars: {
+                            playsinline: 1,
                             origin: typeof window !== 'undefined' ? window.location.origin : '',
                             autoplay: 1,
+                            mute: 1,
                         }
                     }
                 } as any}
-                progressInterval={100}
             />
             </div>
         </div>

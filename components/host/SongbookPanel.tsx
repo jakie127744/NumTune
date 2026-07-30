@@ -116,11 +116,14 @@ export const SongbookPanel: React.FC = () => {
           : `${term} ${selectedSource}`;
       
       const query = encodeURIComponent(cleanTerm);
-      
+
       const searchRes = await fetch(`/api/yt-search?q=${query}`);
       const searchData = await searchRes.json();
 
-      if (searchData.items?.length) {
+      if (!searchRes.ok) {
+          setSearchError(searchData.error || 'YouTube search failed. Please try again.');
+          setSearchResults([]);
+      } else if (searchData.items?.length) {
           const filtered = searchData.items.filter((video: any) => {
             const durationSec = parseDuration(video.contentDetails.duration);
             return durationSec <= 600 && durationSec >= 30;
@@ -130,8 +133,9 @@ export const SongbookPanel: React.FC = () => {
           setSearchResults([]);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("YouTube Search Error:", error);
+      setSearchError(error.message || 'YouTube search failed. Please try again.');
     } finally {
       setIsSearching(false);
     }
@@ -335,16 +339,16 @@ export const SongbookPanel: React.FC = () => {
             )}
 
             {/* 2. YOUTUBE RESULTS */}
+            {searchError && (
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-200 text-xs">
+                    {searchError}
+                </div>
+            )}
             {searchResults.length > 0 && (
                 <div className="space-y-4">
                     <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
                         <Disc className="w-4 h-4 text-red-500" /> New from YouTube
                     </h3>
-                     {searchError && (
-                        <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-200 text-xs">
-                            {searchError}
-                        </div>
-                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {searchResults.map((video) => (
                             <div key={video.id} className="flex flex-col gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
