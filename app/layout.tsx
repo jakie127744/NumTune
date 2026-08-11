@@ -3,6 +3,7 @@ import { Spline_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/Toaster";
 import { ConfirmDialogHost } from "@/components/ConfirmDialog";
+import { KofiButton } from "@/components/KofiButton";
 
 const splineSans = Spline_Sans({
   variable: "--font-spline-sans",
@@ -45,6 +46,7 @@ export default function RootLayout({
         {children}
         <Toaster />
         <ConfirmDialogHost />
+        <KofiButton />
       </body>
     </html>
   );
