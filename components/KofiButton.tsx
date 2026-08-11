@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { Coffee } from 'lucide-react';
 
-const KOFI_URL = 'https://ko-fi.com/offkeykaraoke';
+const KOFI_URL = 'https://ko-fi.com/molavelabs';
 
 // Hidden on the Stage view (the TV/projector display) - a floating "support
 // us" button has no place on the screen the audience is watching.
