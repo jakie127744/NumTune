@@ -3,10 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { Coffee } from 'lucide-react';
 
-// Set this once you have a Ko-fi page (https://ko-fi.com/<your-name>).
-// Left blank for now - the button stays hidden until it's filled in, so
-// there's nothing to wire up later beyond dropping the URL in here.
-const KOFI_URL = '';
+const KOFI_URL = 'https://ko-fi.com/offkeykaraoke';
 
 // Hidden on the Stage view (the TV/projector display) - a floating "support
 // us" button has no place on the screen the audience is watching.
