@@ -549,45 +549,45 @@ export default function MainStage() {
 
           {/* Current Song Info Overlay */}
           {currentSong && (
-             <div className="absolute top-4 left-4 right-4 sm:top-16 sm:left-16 sm:right-auto z-20 animate-in fade-in slide-in-from-left duration-700">
+             <div className="absolute top-3 left-3 right-3 sm:top-16 sm:left-16 sm:right-auto z-20 animate-in fade-in slide-in-from-left duration-700">
                <div className="flex flex-col gap-0.5 sm:gap-1 max-w-full sm:max-w-lg">
-                 <h3 className="text-base sm:text-2xl font-bold text-white drop-shadow-2xl line-clamp-2">{currentSong.title}</h3>
-                 <p className="text-white/90 text-xs sm:text-lg font-medium drop-shadow-xl truncate">{currentSong.artist}</p>
+                 <h3 className="text-xs sm:text-2xl font-bold text-white drop-shadow-2xl truncate sm:line-clamp-2 sm:whitespace-normal">{currentSong.title}</h3>
+                 <p className="text-white/80 text-[10px] sm:text-lg font-medium drop-shadow-xl truncate">{currentSong.artist}</p>
                </div>
              </div>
           )}
       </main>
 
       {/* Bottom Banner Area */}
-      <footer className="absolute bottom-0 left-0 right-0 z-10 p-3 sm:p-10 pointer-events-none">
-        <div className="flex items-end justify-between gap-2 sm:gap-4">
+      <footer className="absolute bottom-0 left-0 right-0 z-10 p-2 sm:p-10 pointer-events-none">
+        <div className="flex items-end justify-between gap-1.5 sm:gap-4">
           {/* Current Singer */}
           {currentSong && (
-            <div className="flex items-center gap-1.5 sm:gap-3 bg-[#0c0811]/90 backdrop-blur-2xl border border-white/10 p-1 pr-3 sm:p-2 sm:pr-6 rounded-full pointer-events-auto shadow-2xl min-w-0">
+            <div className="flex items-center gap-1 sm:gap-3 bg-[#0c0811]/90 backdrop-blur-2xl border border-white/10 p-0.5 pr-2 sm:p-2 sm:pr-6 rounded-full pointer-events-auto shadow-2xl min-w-0">
                 <div
-                className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-center bg-cover ring-2 ring-primary/30 shrink-0"
+                className="w-5 h-5 sm:w-10 sm:h-10 rounded-full bg-center bg-cover ring-2 ring-primary/30 shrink-0"
                 style={{ backgroundImage: `url("${currentSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
                 />
                 <div className="flex flex-col min-w-0">
-                <span className="text-[6px] sm:text-[8px] uppercase tracking-widest text-primary font-bold">On Stage</span>
-                <span className="text-xs sm:text-lg font-bold truncate max-w-[80px] sm:max-w-none">{currentSong.singer}</span>
+                <span className="text-[5px] sm:text-[8px] uppercase tracking-widest text-primary font-bold">On Stage</span>
+                <span className="text-[10px] sm:text-lg font-bold truncate max-w-[60px] sm:max-w-none">{currentSong.singer}</span>
                 </div>
             </div>
           )}
 
           {/* Next Up */}
           {nextSong && (
-            <div className="flex items-stretch gap-1.5 sm:gap-3 rounded-xl sm:rounded-2xl bg-primary/10 backdrop-blur-2xl border border-primary/20 p-1 pl-2.5 sm:p-1.5 sm:pl-4 pointer-events-auto shadow-2xl max-w-[150px] sm:max-w-[400px] min-w-0">
+            <div className="flex items-stretch gap-1 sm:gap-3 rounded-lg sm:rounded-2xl bg-primary/10 backdrop-blur-2xl border border-primary/20 p-0.5 pl-2 sm:p-1.5 sm:pl-4 pointer-events-auto shadow-2xl max-w-[110px] sm:max-w-[400px] min-w-0">
                 <div className="flex flex-col justify-center flex-1 min-w-0">
                 <div className="flex items-center gap-1 sm:gap-2">
-                    <ListMusic className="w-2.5 h-2.5 sm:w-4 sm:h-4 text-primary shrink-0" />
-                    <p className="text-primary text-[6px] sm:text-[8px] font-bold uppercase tracking-widest truncate">Next Up</p>
+                    <ListMusic className="w-2 h-2 sm:w-4 sm:h-4 text-primary shrink-0" />
+                    <p className="text-primary text-[5px] sm:text-[8px] font-bold uppercase tracking-widest truncate">Next Up</p>
                 </div>
-                <p className="text-white text-[11px] sm:text-base font-bold leading-tight mt-0.5 truncate">{nextSong.singer}</p>
-                <p className="text-white/50 text-[9px] sm:text-xs truncate mt-0.5">{nextSong.title}</p>
+                <p className="text-white text-[9px] sm:text-base font-bold leading-tight mt-0.5 truncate">{nextSong.singer}</p>
+                <p className="text-white/50 text-[7px] sm:text-xs truncate mt-0.5 hidden sm:block">{nextSong.title}</p>
                 </div>
                 <div
-                className="w-8 h-8 sm:w-16 sm:h-16 bg-center bg-cover rounded-lg sm:rounded-xl shrink-0"
+                className="w-5 h-5 sm:w-16 sm:h-16 bg-center bg-cover rounded sm:rounded-xl shrink-0 self-center"
                 style={{ backgroundImage: `url("${nextSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
                 />
             </div>
