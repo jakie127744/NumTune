@@ -30,8 +30,8 @@ export default function Home() {
       
       <div className="max-w-4xl w-full space-y-12">
         <div className="text-center space-y-4">
-          <div className="inline-flex items-center justify-center p-3 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl shadow-lg shadow-violet-500/20 mb-4">
-            <img src="/off-key-logo.png" alt="Logo" className="w-10 h-10 drop-shadow-lg" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <img src="/off-key-logo.png" alt="Logo" className="h-20 sm:h-28 w-auto object-contain drop-shadow-lg" />
           </div>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-gradient-to-b from-white to-white/60 bg-clip-text text-transparent">
             Off Key Karaoke

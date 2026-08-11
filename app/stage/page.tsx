@@ -487,20 +487,14 @@ export default function MainStage() {
       )}
 
       {/* Top Navigation Bar */}
-      <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-10 py-6 bg-gradient-to-b from-black/60 to-transparent">
-        <div className="flex items-center gap-4 text-white/80">
-          <div className="w-6 h-6 text-primary">
-            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M8.57829 8.57829C5.52816 11.6284 3.451 15.5145 2.60947 19.7452C1.76794 23.9758 2.19984 28.361 3.85056 32.3462C5.50128 36.3314 8.29667 39.7376 11.8832 42.134C15.4698 44.5305 19.6865 45.8096 24 45.8096C28.3135 45.8096 32.5302 44.5305 36.1168 42.134C39.7033 39.7375 42.4987 36.3314 44.1494 32.3462C45.8002 28.361 46.2321 23.9758 45.3905 19.7452C44.549 15.5145 42.4718 11.6284 39.4217 8.57829L24 24L8.57829 8.57829Z" fill="currentColor"></path>
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold tracking-tight">Off Key <span className="text-primary font-normal ml-2">Karaoke</span></h2>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end gap-1">
-        {/* Connection Indicator removed as it's now in the 'Sync Health' monitor */}
-          </div>
-        </div>
+      <header className="absolute top-0 left-0 right-0 z-20 flex items-center justify-end px-4 sm:px-10 py-3 sm:py-6 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
+        {/* Logo lives on the right so it never collides with the current-song
+            overlay, which is anchored top-left. */}
+        <img
+          src="/off-key-logo.png"
+          alt="Off Key Karaoke"
+          className="h-10 sm:h-16 w-auto object-contain drop-shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+        />
       </header>
 
       {/* Main Video Area */}
@@ -537,17 +531,11 @@ export default function MainStage() {
 
                         {/* Security Curtain & Branding: Shows when paused/stopped */}
                         {!isPlaying && (
-                            <div className="absolute inset-0 z-30 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none p-10 text-center space-y-8 animate-in fade-in duration-1000">
-                                <div className="space-y-4">
-                                     <img src="/off-key-logo.png" alt="Off Key Karaoke" className="w-24 h-24 mx-auto mb-6 opacity-80 drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]" />
-                                     <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-br from-violet-400 via-primary to-orange-400 tracking-tighter drop-shadow-2xl">
-                                        Off Key Karaoke
-                                     </h1>
-                                     <p className="text-xl md:text-3xl font-medium text-white/50 tracking-widest uppercase mt-4">
-                                        Sing anyway, because fun isn&apos;t always in key
-                                     </p>
-                                </div>
-                                
+                            <div className="absolute inset-0 z-30 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none p-10 text-center animate-in fade-in duration-1000">
+                                {/* The logo already carries the "Off Key Karaoke" wordmark + tagline,
+                                    so it stands alone here instead of duplicating that text below it. */}
+                                <img src="/off-key-logo.png" alt="Off Key Karaoke" className="w-full max-w-[280px] sm:max-w-md h-auto object-contain opacity-90 drop-shadow-[0_0_25px_rgba(255,255,255,0.25)]" />
+
                                 <div className="absolute bottom-12 opacity-40">
                                     <p className="text-sm font-bold tracking-[0.3em] uppercase text-white/40">
                                         Created by Molave Labs
@@ -561,45 +549,45 @@ export default function MainStage() {
 
           {/* Current Song Info Overlay */}
           {currentSong && (
-             <div className="absolute top-16 left-16 z-20 animate-in fade-in slide-in-from-left duration-700">
-               <div className="flex flex-col gap-1">
-                 <h3 className="text-2xl font-bold text-white drop-shadow-2xl">{currentSong.title}</h3>
-                 <p className="text-white/90 text-lg font-medium drop-shadow-xl">{currentSong.artist}</p>
+             <div className="absolute top-4 left-4 right-4 sm:top-16 sm:left-16 sm:right-auto z-20 animate-in fade-in slide-in-from-left duration-700">
+               <div className="flex flex-col gap-0.5 sm:gap-1 max-w-full sm:max-w-lg">
+                 <h3 className="text-base sm:text-2xl font-bold text-white drop-shadow-2xl line-clamp-2">{currentSong.title}</h3>
+                 <p className="text-white/90 text-xs sm:text-lg font-medium drop-shadow-xl truncate">{currentSong.artist}</p>
                </div>
              </div>
           )}
       </main>
 
       {/* Bottom Banner Area */}
-      <footer className="absolute bottom-0 left-0 right-0 z-10 p-10 pointer-events-none">
-        <div className="flex items-end justify-between">
+      <footer className="absolute bottom-0 left-0 right-0 z-10 p-3 sm:p-10 pointer-events-none">
+        <div className="flex items-end justify-between gap-2 sm:gap-4">
           {/* Current Singer */}
           {currentSong && (
-            <div className="flex items-center gap-3 bg-[#0c0811]/90 backdrop-blur-2xl border border-white/10 p-2 pr-6 rounded-full pointer-events-auto shadow-2xl">
-                <div 
-                className="w-10 h-10 rounded-full bg-center bg-cover ring-2 ring-primary/30" 
+            <div className="flex items-center gap-1.5 sm:gap-3 bg-[#0c0811]/90 backdrop-blur-2xl border border-white/10 p-1 pr-3 sm:p-2 sm:pr-6 rounded-full pointer-events-auto shadow-2xl min-w-0">
+                <div
+                className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-center bg-cover ring-2 ring-primary/30 shrink-0"
                 style={{ backgroundImage: `url("${currentSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
                 />
-                <div className="flex flex-col">
-                <span className="text-[8px] uppercase tracking-widest text-primary font-bold">On Stage</span>
-                <span className="text-lg font-bold">{currentSong.singer}</span>
+                <div className="flex flex-col min-w-0">
+                <span className="text-[6px] sm:text-[8px] uppercase tracking-widest text-primary font-bold">On Stage</span>
+                <span className="text-xs sm:text-lg font-bold truncate max-w-[80px] sm:max-w-none">{currentSong.singer}</span>
                 </div>
             </div>
           )}
 
           {/* Next Up */}
           {nextSong && (
-            <div className="flex items-stretch gap-3 rounded-2xl bg-primary/10 backdrop-blur-2xl border border-primary/20 p-1.5 pl-4 pointer-events-auto shadow-2xl max-w-[400px]">
-                <div className="flex flex-col justify-center flex-1">
-                <div className="flex items-center gap-2">
-                    <ListMusic className="w-4 h-4 text-primary" />
-                    <p className="text-primary text-[8px] font-bold uppercase tracking-widest">Next Up</p>
+            <div className="flex items-stretch gap-1.5 sm:gap-3 rounded-xl sm:rounded-2xl bg-primary/10 backdrop-blur-2xl border border-primary/20 p-1 pl-2.5 sm:p-1.5 sm:pl-4 pointer-events-auto shadow-2xl max-w-[150px] sm:max-w-[400px] min-w-0">
+                <div className="flex flex-col justify-center flex-1 min-w-0">
+                <div className="flex items-center gap-1 sm:gap-2">
+                    <ListMusic className="w-2.5 h-2.5 sm:w-4 sm:h-4 text-primary shrink-0" />
+                    <p className="text-primary text-[6px] sm:text-[8px] font-bold uppercase tracking-widest truncate">Next Up</p>
                 </div>
-                <p className="text-white text-base font-bold leading-tight mt-0.5">{nextSong.singer}</p>
-                <p className="text-white/50 text-xs truncate mt-0.5">{nextSong.title}</p>
+                <p className="text-white text-[11px] sm:text-base font-bold leading-tight mt-0.5 truncate">{nextSong.singer}</p>
+                <p className="text-white/50 text-[9px] sm:text-xs truncate mt-0.5">{nextSong.title}</p>
                 </div>
-                <div 
-                className="w-16 h-16 bg-center bg-cover rounded-xl shrink-0" 
+                <div
+                className="w-8 h-8 sm:w-16 sm:h-16 bg-center bg-cover rounded-lg sm:rounded-xl shrink-0"
                 style={{ backgroundImage: `url("${nextSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
                 />
             </div>
@@ -656,28 +644,28 @@ export default function MainStage() {
       )}
 
       {/* Projection & Mute Label (Always visible/useful) */}
-      <div className="absolute top-28 right-10 flex flex-col items-end gap-2 pr-2 z-30 pointer-events-auto">
+      <div className="absolute top-16 right-3 sm:top-28 sm:right-10 flex flex-col items-end gap-1.5 sm:gap-2 pr-1 sm:pr-2 z-30 pointer-events-auto">
              <button
                 onClick={() => setIsLocalMuted(!isLocalMuted)}
                 title={isLocalMuted ? "Unmute Stage" : "Mute Stage"}
                 className={cn(
-                    "w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border",
+                    "w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border",
                     isLocalMuted
                         ? "bg-red-500/20 text-red-500 border-red-500/30"
                         : "bg-white/5 text-primary border-white/10 hover:bg-white/10"
                 )}
              >
-                 {isLocalMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                 {isLocalMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5" />}
              </button>
-             <span className="text-[8px] font-black uppercase tracking-widest text-primary/60">
+             <span className="hidden sm:block text-[8px] font-black uppercase tracking-widest text-primary/60">
                  Projection {isLocalMuted ? '(MUTED)' : ''}
              </span>
              <button
                 onClick={toggleFullscreen}
                 title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-                className="w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border bg-white/5 text-primary border-white/10 hover:bg-white/10 mt-2"
+                className="w-9 h-9 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 border bg-white/5 text-primary border-white/10 hover:bg-white/10 mt-1 sm:mt-2"
              >
-                 <Maximize className="w-5 h-5" />
+                 <Maximize className="w-4 h-4 sm:w-5 sm:h-5" />
              </button>
       </div>
 
