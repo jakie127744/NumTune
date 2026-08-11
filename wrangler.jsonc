@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "offkey-karaoke",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": {
+    "enabled": true
+  }
+  // Custom domain (offkeykaraoke.party) is attached after the first deploy —
+  // see Workers & Pages > offkey-karaoke > Settings > Domains & Routes in the
+  // Cloudflare dashboard, or `wrangler deployments domains add`.
+}
