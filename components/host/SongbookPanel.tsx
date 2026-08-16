@@ -278,26 +278,31 @@ export const SongbookPanel: React.FC = () => {
                 </div>
            </div>
 
-           {/* Manual URL Add */}
-           <div className="flex gap-2 p-1.5 bg-violet-500/10 rounded-2xl border border-violet-500/20">
-                <div className="relative flex-1">
-                    <Music className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-violet-400" />
-                    <input 
-                        className="w-full bg-black/40 border border-white/5 rounded-xl h-10 pl-10 pr-4 text-xs focus:outline-none focus:border-violet-500 transition-all placeholder:text-neutral-500" 
-                        placeholder="Or paste YouTube URL to add immediately..." 
-                        value={manualUrl}
-                        onChange={(e) => setManualUrl(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
-                    />
-                </div>
-                <button 
-                    onClick={handleUrlAdd}
-                    disabled={isFetchingUrl || !manualUrl}
-                    className="px-6 bg-violet-600 text-white hover:bg-violet-500 rounded-xl text-xs font-bold transition-all disabled:opacity-50 shadow-lg shadow-violet-600/20"
-                >
-                    {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add Link'}
-                </button>
-           </div>
+           {/* Manual URL Add - dev-only. It's not working reliably on the
+               deployed site, so it's hidden there rather than shipping a
+               broken control; still needed in dev, since it's the primary
+               way songs get added to the library locally. */}
+           {process.env.NODE_ENV !== 'production' && (
+               <div className="flex gap-2 p-1.5 bg-violet-500/10 rounded-2xl border border-violet-500/20">
+                    <div className="relative flex-1">
+                        <Music className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-violet-400" />
+                        <input
+                            className="w-full bg-black/40 border border-white/5 rounded-xl h-10 pl-10 pr-4 text-xs focus:outline-none focus:border-violet-500 transition-all placeholder:text-neutral-500"
+                            placeholder="Or paste YouTube URL to add immediately..."
+                            value={manualUrl}
+                            onChange={(e) => setManualUrl(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
+                        />
+                    </div>
+                    <button
+                        onClick={handleUrlAdd}
+                        disabled={isFetchingUrl || !manualUrl}
+                        className="px-6 bg-violet-600 text-white hover:bg-violet-500 rounded-xl text-xs font-bold transition-all disabled:opacity-50 shadow-lg shadow-violet-600/20"
+                    >
+                        {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add Link'}
+                    </button>
+               </div>
+           )}
        </div>
 
        <div className="flex-1 overflow-y-auto pr-2 space-y-8">

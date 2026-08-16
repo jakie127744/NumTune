@@ -524,37 +524,44 @@ const FALLBACK_SONGS = [
               </div>
             </label>
 
-            {/* Manual URL Bar */}
-            <div className="flex items-center gap-3 py-2">
-              <div className="h-px flex-1 bg-violet-500/20" />
-              <span className="text-xs text-violet-400 font-black uppercase tracking-[0.2em] px-4">Direct Link Add</span>
-              <div className="h-px flex-1 bg-violet-500/20" />
-            </div>
-
-            <div className="group relative">
-               <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-1000 group-hover:duration-200"></div>
-               <label className="relative flex flex-col w-full">
-                <div className="flex w-full items-stretch rounded-xl h-14 bg-neutral-900 border border-violet-500/30 group-focus-within:border-violet-500 transition-all shadow-2xl">
-                    <div className="text-violet-400 flex items-center justify-center pl-5">
-                    <LinkIcon className="w-5 h-5" />
-                    </div>
-                    <input 
-                        className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-base font-normal text-white placeholder:text-neutral-500" 
-                        placeholder="Paste YouTube Video URL (e.g. youtube.com/watch?v=...)" 
-                        value={manualUrl}
-                        onChange={(e) => setManualUrl(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
-                    />
-                    <button 
-                        onClick={handleUrlAdd}
-                        disabled={isFetchingUrl || !manualUrl}
-                        className="bg-violet-600 text-white px-6 m-1.5 rounded-lg font-bold text-sm hover:bg-violet-500 transition-all disabled:opacity-50 shadow-lg shadow-violet-600/20"
-                    >
-                        {isFetchingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Fetch & Add'}
-                    </button>
+            {/* Manual URL Bar - dev-only. Not working reliably on the deployed
+                site, so it's hidden there rather than shipping a broken
+                control; still needed in dev, since it's the primary way
+                songs get added to the library locally. */}
+            {process.env.NODE_ENV !== 'production' && (
+              <>
+                <div className="flex items-center gap-3 py-2">
+                  <div className="h-px flex-1 bg-violet-500/20" />
+                  <span className="text-xs text-violet-400 font-black uppercase tracking-[0.2em] px-4">Direct Link Add</span>
+                  <div className="h-px flex-1 bg-violet-500/20" />
                 </div>
-                </label>
-            </div>
+
+                <div className="group relative">
+                   <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-2xl blur opacity-20 group-focus-within:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                   <label className="relative flex flex-col w-full">
+                    <div className="flex w-full items-stretch rounded-xl h-14 bg-neutral-900 border border-violet-500/30 group-focus-within:border-violet-500 transition-all shadow-2xl">
+                        <div className="text-violet-400 flex items-center justify-center pl-5">
+                        <LinkIcon className="w-5 h-5" />
+                        </div>
+                        <input
+                            className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-base font-normal text-white placeholder:text-neutral-500"
+                            placeholder="Paste YouTube Video URL (e.g. youtube.com/watch?v=...)"
+                            value={manualUrl}
+                            onChange={(e) => setManualUrl(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
+                        />
+                        <button
+                            onClick={handleUrlAdd}
+                            disabled={isFetchingUrl || !manualUrl}
+                            className="bg-violet-600 text-white px-6 m-1.5 rounded-lg font-bold text-sm hover:bg-violet-500 transition-all disabled:opacity-50 shadow-lg shadow-violet-600/20"
+                        >
+                            {isFetchingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Fetch & Add'}
+                        </button>
+                    </div>
+                    </label>
+                </div>
+              </>
+            )}
 
             {/* Quick Filters Removed */}
             <div className="flex flex-wrap items-center justify-center gap-2">
