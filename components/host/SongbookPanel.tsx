@@ -3,6 +3,7 @@ import { Search, PlusCircle, Disc, Loader2, Music, CloudDownload, Edit, Trash2, 
 import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 import { toast } from '@/lib/toast';
+import { roomCodeStorage } from '@/lib/roomCodeStorage';
 
 // Types for YouTube API Response
 interface YouTubeSearchResult {
@@ -39,11 +40,11 @@ export const SongbookPanel: React.FC = () => {
   useEffect(() => {
     const init = async () => {
         // Recover Room Code from Host session
-        const savedCode = localStorage.getItem('tunr_host_room_code');
+        const savedCode = roomCodeStorage.get();
         if (savedCode) {
             useTunrStore.getState().setRoomCode(savedCode);
         }
-        
+
         await fetchLibrary();
         performSearch("Popular Karaoke Songs");
     };

@@ -7,6 +7,7 @@ import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { confirmDialog } from '@/lib/confirm';
+import { roomCodeStorage } from '@/lib/roomCodeStorage';
 
 // Types for YouTube API Response
 interface YouTubeSearchResult {
@@ -50,7 +51,7 @@ export default function SongbookPage() {
         useTunrStore.setState({ isHost: true });
 
         // Recover Room Code from Host session
-        const savedCode = localStorage.getItem('tunr_host_room_code');
+        const savedCode = roomCodeStorage.get();
         if (savedCode) {
             useTunrStore.getState().setRoomCode(savedCode);
         }

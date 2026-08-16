@@ -5,8 +5,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     
-    // Get the actual host and protocol from headers (crucial for Vercel/proxies)
-    const host = request.headers.get('host') || 'offkeykaraoke.vercel.app';
+    // Get the actual host and protocol from headers (crucial for Vercel/proxies).
+    // The literal fallback only kicks in if the request somehow has no Host
+    // header at all - Cloudflare (offkeykaraoke.party) is primary, Vercel is
+    // the backup, so that's the fallback's priority order too.
+    const host = request.headers.get('host') || 'offkeykaraoke.party';
     const protocol = request.headers.get('x-forwarded-proto') || 'https';
     const origin = `${protocol}://${host}`;
 

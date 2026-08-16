@@ -2,6 +2,7 @@ import { StateCreator } from 'zustand';
 import { TunrStore, QueueSlice, Song } from './types';
 import { supabase } from '../supabase';
 import { toast } from '../toast';
+import { roomCodeStorage } from '../roomCodeStorage';
 
 export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (set, get) => ({
   queue: [],
@@ -27,14 +28,13 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
           return "";
       }
 
-      // If user is authenticated genuinely, try to recover their existing room
-      if (!session?.user?.is_anonymous) {
-          const { data: existingRoom } = await supabase.from('rooms').select('code').eq('owner_id', userId).order('created_at', { ascending: false }).limit(1).single();
-          if (existingRoom) {
-              set({ roomCode: existingRoom.code });
-              return existingRoom.code;
-          }
-      }
+      // Every call to generateRoomCode() mints a brand-new room, even for a
+      // genuinely logged-in user - it's only called when there's no cached
+      // code for the *current* browser session (see app/host/page.tsx) or
+      // when the host explicitly starts a NEW SESSION. Reusing an old room
+      // here (by owner_id lookup) was what let a stale room outlive the
+      // session it belonged to; not doing that keeps "new session -> new
+      // code" true regardless of login state.
 
       // Retry on room-code collision (unique constraint on rooms.code) instead
       // of leaving the host stuck with no room at all.
@@ -48,9 +48,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
 
           if (!roomError) {
               set({ roomCode: code });
-              if (typeof window !== 'undefined') {
-                  localStorage.setItem('tunr_host_room_code', code);
-              }
+              roomCodeStorage.set(code);
               return code;
           }
 
@@ -73,9 +71,7 @@ export const createQueueSlice: StateCreator<TunrStore, [], [], QueueSlice> = (se
   setRoomCode: (code: string) => {
     const upperCode = code.toUpperCase();
     set({ roomCode: upperCode });
-    if (typeof window !== 'undefined') {
-        localStorage.setItem('tunr_host_room_code', upperCode);
-    }
+    roomCodeStorage.set(upperCode);
   },
 
   fetchQueue: async () => {

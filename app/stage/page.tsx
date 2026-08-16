@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Maximize, User, ListMusic, Music, Monitor } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import dynamic from 'next/dynamic';
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
@@ -394,6 +394,28 @@ export default function MainStage() {
   const nextSong = queue.length > 0 ? queue[0] : null;
   const [debugEnded, setDebugEnded] = React.useState(false);
 
+  // "Up Next" reminder: instead of a permanent on-screen pill, pop it up as
+  // a periodic reminder - visible for 15s, then hidden for the rest of the
+  // minute - so it doesn't sit there distracting from the performance.
+  const [showNextReminder, setShowNextReminder] = React.useState(false);
+  React.useEffect(() => {
+    if (!nextSong) {
+      setShowNextReminder(false);
+      return;
+    }
+    let hideTimeout: ReturnType<typeof setTimeout>;
+    const showReminder = () => {
+      setShowNextReminder(true);
+      hideTimeout = setTimeout(() => setShowNextReminder(false), 15000);
+    };
+    showReminder(); // announce immediately as soon as there's a next singer
+    const interval = setInterval(showReminder, 60000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(hideTimeout);
+    };
+  }, [nextSong?.queueId]);
+
   // Ultra-reliable Unthrottled Raw IFrame Event Monitor
   React.useEffect(() => {
      if (!currentSong) return;
@@ -516,12 +538,17 @@ export default function MainStage() {
       {/* Main Video Area */}
       <main className="relative flex-1 flex items-center justify-center p-8 z-10">
           <div className="relative w-full h-full bg-black rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] ring-1 ring-white/10">
-                {/* Fallback Display */}
+                {/* Fallback Display: no song currently playing at all (either
+                    nobody has sung yet, or the queue just ran dry). */}
                 {!currentSong?.youtubeId && (
-                    <div className="absolute inset-0 bg-neutral-900 flex items-center justify-center opacity-50 z-0 bg-[url('https://images.unsplash.com/photo-1516280440614-6697288d5d38?auto=format&fit=crop&q=80')] bg-cover">
-                         <div className="text-center space-y-4">
-                            <Music className="w-16 h-16 text-primary/40 mx-auto" />
-                            <p className="text-xl font-medium text-white/40">Waiting for first singer...</p>
+                    <div className="absolute inset-0 bg-[#0c0811] flex items-center justify-center z-0">
+                         <div className="text-center space-y-6 animate-in fade-in duration-1000">
+                            <img
+                              src="/off-key-logo.png"
+                              alt="Off Key Karaoke"
+                              className="w-full max-w-[240px] sm:max-w-sm h-auto object-contain mx-auto opacity-90 drop-shadow-[0_0_25px_rgba(255,255,255,0.25)]"
+                            />
+                            <p className="text-xl font-medium text-white/40">Waiting for new songs &amp; singers…</p>
                          </div>
                     </div>
                 )}
@@ -545,12 +572,35 @@ export default function MainStage() {
                         {/* YT.Player mounts here — the API replaces this div with an iframe it controls */}
                         <div id="yt-stage-container" className="absolute inset-0 w-full h-full z-10" style={{ pointerEvents: 'none' }} />
 
-                        {/* Security Curtain & Branding: Shows when paused/stopped */}
+                        {/* Security Curtain & Branding: Shows when paused/stopped, which
+                            includes the brief intermission between one song ending and
+                            the next starting - so this doubles as the "in-between songs"
+                            screen and gets to show who's up next. */}
                         {!isPlaying && (
-                            <div className="absolute inset-0 z-30 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none p-10 text-center animate-in fade-in duration-1000">
+                            <div className="absolute inset-0 z-30 bg-black/95 backdrop-blur-3xl flex flex-col items-center justify-center pointer-events-none p-10 text-center gap-8 animate-in fade-in duration-1000">
                                 {/* The logo already carries the "Off Key Karaoke" wordmark + tagline,
                                     so it stands alone here instead of duplicating that text below it. */}
                                 <img src="/off-key-logo.png" alt="Off Key Karaoke" className="w-full max-w-[280px] sm:max-w-md h-auto object-contain opacity-90 drop-shadow-[0_0_25px_rgba(255,255,255,0.25)]" />
+
+                                {nextSong ? (
+                                    // Bigger + centered than the periodic corner reminder
+                                    // (see showNextReminder pill below) - this one is the
+                                    // main "in-between songs" screen, so it gets to be the
+                                    // focal point rather than a discreet nudge.
+                                    <div className="flex items-center gap-6 bg-white/5 border border-primary/20 rounded-3xl px-10 py-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                                        <div
+                                            className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-center bg-cover ring-2 ring-primary/30 shrink-0"
+                                            style={{ backgroundImage: `url("${nextSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
+                                        />
+                                        <div className="text-left">
+                                            <p className="text-primary text-sm font-bold uppercase tracking-widest">Up Next</p>
+                                            <p className="text-white text-3xl sm:text-4xl font-black leading-tight mt-1">{nextSong.singer}</p>
+                                            <p className="text-white/50 text-lg truncate max-w-[320px] mt-1">{nextSong.title}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-lg font-medium text-white/40">Waiting for new songs &amp; singers…</p>
+                                )}
 
                                 <div className="absolute bottom-12 opacity-40">
                                     <p className="text-sm font-bold tracking-[0.3em] uppercase text-white/40">
@@ -591,23 +641,33 @@ export default function MainStage() {
             </div>
           )}
 
-          {/* Next Up */}
-          {nextSong && (
-            <div className={cn("flex items-stretch bg-primary/10 backdrop-blur-2xl border border-primary/20 pointer-events-auto shadow-2xl min-w-0", isCompact ? "gap-1 rounded-lg p-0.5 pl-2 max-w-[110px]" : "gap-3 rounded-2xl p-1.5 pl-4 max-w-[400px]")}>
-                <div className="flex flex-col justify-center flex-1 min-w-0">
-                <div className={cn("flex items-center", isCompact ? "gap-1" : "gap-2")}>
-                    <ListMusic className={cn("text-primary shrink-0", isCompact ? "w-2 h-2" : "w-4 h-4")} />
-                    <p className={cn("text-primary font-bold uppercase tracking-widest truncate", isCompact ? "text-[5px]" : "text-[8px]")}>Next Up</p>
-                </div>
-                <p className={cn("text-white font-bold leading-tight mt-0.5 truncate", isCompact ? "text-[9px]" : "text-base")}>{nextSong.singer}</p>
-                {!isCompact && <p className="text-white/50 text-xs truncate mt-0.5">{nextSong.title}</p>}
-                </div>
-                <div
-                className={cn("bg-center bg-cover shrink-0 self-center", isCompact ? "w-5 h-5 rounded" : "w-16 h-16 rounded-xl")}
-                style={{ backgroundImage: `url("${nextSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
-                />
-            </div>
-          )}
+          {/* Next Up — a periodic reminder rather than a permanent fixture:
+              pops up for 15s once a minute (see showNextReminder above) so
+              it doesn't compete with the performance the rest of the time. */}
+          <AnimatePresence>
+            {nextSong && showNextReminder && (
+              <motion.div
+                initial={{ opacity: 0, y: 16, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.95 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+                className={cn("flex items-stretch bg-primary/10 backdrop-blur-2xl border border-primary/20 pointer-events-auto shadow-2xl min-w-0", isCompact ? "gap-1 rounded-lg p-0.5 pl-2 max-w-[110px]" : "gap-3 rounded-2xl p-1.5 pl-4 max-w-[400px]")}
+              >
+                  <div className="flex flex-col justify-center flex-1 min-w-0">
+                  <div className={cn("flex items-center", isCompact ? "gap-1" : "gap-2")}>
+                      <ListMusic className={cn("text-primary shrink-0", isCompact ? "w-2 h-2" : "w-4 h-4")} />
+                      <p className={cn("text-primary font-bold uppercase tracking-widest truncate", isCompact ? "text-[5px]" : "text-[8px]")}>Next Up</p>
+                  </div>
+                  <p className={cn("text-white font-bold leading-tight mt-0.5 truncate", isCompact ? "text-[9px]" : "text-base")}>{nextSong.singer}</p>
+                  {!isCompact && <p className="text-white/50 text-xs truncate mt-0.5">{nextSong.title}</p>}
+                  </div>
+                  <div
+                  className={cn("bg-center bg-cover shrink-0 self-center", isCompact ? "w-5 h-5 rounded" : "w-16 h-16 rounded-xl")}
+                  style={{ backgroundImage: `url("${nextSong.thumbnailUrl || 'https://via.placeholder.com/150'}")` }}
+                  />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </footer>
       

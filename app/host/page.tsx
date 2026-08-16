@@ -15,6 +15,7 @@ import { ConnectQR } from '@/components/host/ConnectQR';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
 import { confirmDialog } from '@/lib/confirm';
+import { roomCodeStorage } from '@/lib/roomCodeStorage';
 
 
 export default function HostDashboard() {
@@ -52,24 +53,66 @@ export default function HostDashboard() {
       setTimeout(() => setCopied(false), 2000);
   };
 
+  // Tracks the auth user id we last set roomCode up for, so the
+  // onAuthStateChange listener below can tell "identity actually changed"
+  // apart from the one-time bootstrap that init() already handles.
+  const lastUserIdRef = React.useRef<string | null | undefined>(undefined);
+  const hasInitRef = React.useRef(false);
+
   React.useEffect(() => {
     const init = async () => {
         useTunrStore.setState({ isHost: true });
         await useTunrStore.getState().ensureSession();
-        
+
         const { data: { session } } = await supabase.auth.getSession();
+        lastUserIdRef.current = session?.user?.id ?? null;
         if (session?.user && !session.user.is_anonymous) {
             setUser(session.user);
         }
 
-        const savedCode = localStorage.getItem('tunr_host_room_code');
+        const savedCode = roomCodeStorage.get();
         if (savedCode) {
-            setRoomCode(savedCode);
+            // Don't trust a cached code blindly - it may have been minted
+            // under a different auth identity (e.g. an anonymous session,
+            // before logging in). Confirm the current session actually owns
+            // it before using it, otherwise every owner-checked action
+            // (Skip, etc.) would fail with "you do not own this room".
+            const { data: room } = await supabase.from('rooms').select('owner_id').eq('code', savedCode).maybeSingle();
+            if (room && room.owner_id === session?.user?.id) {
+                setRoomCode(savedCode);
+            } else {
+                roomCodeStorage.remove();
+                await generateRoomCode();
+            }
         } else if (!useTunrStore.getState().roomCode) {
-            generateRoomCode();
+            await generateRoomCode();
         }
+
+        hasInitRef.current = true;
     };
     init();
+
+    // Belt-and-suspenders for identity changes that happen without a fresh
+    // mount of this page (e.g. a dev-mode tab picking up a sign-in/sign-out
+    // that happened in another tab, since dev auth is shared via
+    // localStorage). Ignored until init() above has finished its own pass.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+        if (!hasInitRef.current) return;
+        const newUserId = newSession?.user?.id ?? null;
+        if (newUserId === lastUserIdRef.current) return;
+        lastUserIdRef.current = newUserId;
+
+        roomCodeStorage.remove();
+        setUser(newSession?.user && !newSession.user.is_anonymous ? newSession.user : null);
+
+        if (newUserId) {
+            generateRoomCode();
+        } else {
+            setRoomCode('');
+        }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   React.useEffect(() => {
@@ -158,7 +201,7 @@ export default function HostDashboard() {
                                     if (existing) {
                                         if (existing.owner_id === session.user.id) {
                                             setRoomCode(newCode);
-                                            localStorage.setItem('tunr_host_room_code', newCode);
+                                            roomCodeStorage.set(newCode);
                                         } else {
                                             toast.error("This Room Code is taken!");
                                             setTempRoomCode(roomCode);
@@ -170,7 +213,7 @@ export default function HostDashboard() {
                                         });
                                         if (!error) {
                                             setRoomCode(newCode);
-                                            localStorage.setItem('tunr_host_room_code', newCode);
+                                            roomCodeStorage.set(newCode);
                                         } else {
                                             toast.error("Failed to create room.");
                                             setTempRoomCode(roomCode);

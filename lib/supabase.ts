@@ -8,7 +8,18 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Ties the Supabase auth session's lifetime to the room-code cache
+// (see lib/roomCodeStorage.ts): in production the session lives in
+// sessionStorage, so closing the browser signs the host out and clears
+// whatever room they owned, instead of a stale identity lingering in
+// localStorage and later mismatching the room a fresh login expects to own.
+// In dev, keep the default persistent localStorage session.
+const isDev = process.env.NODE_ENV !== 'production';
+const authOptions = typeof window !== 'undefined'
+  ? { auth: { storage: isDev ? window.localStorage : window.sessionStorage } }
+  : {};
+
+export const supabase = createClient(supabaseUrl, supabaseKey, authOptions);
 
 // Supabase's PostgREST API caps any single query at 1000 rows by default.
 // This pages through with .range() so libraries larger than 1000 songs load in full.
