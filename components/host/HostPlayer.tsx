@@ -358,7 +358,7 @@ const PlayerProgressBar = ({ duration, id }: { duration: string, id: number }) =
     const getDurationSeconds = (f: string) => {
         if (!f) return 0;
         const parts = f.split(':').map(Number);
-        if (parts.length === 2) return parts[0] * 60 + parts[1];
+        if (parts.length === 2 && !parts.some(Number.isNaN)) return parts[0] * 60 + parts[1];
         return 0;
     };
 
@@ -368,14 +368,19 @@ const PlayerProgressBar = ({ duration, id }: { duration: string, id: number }) =
         return `${min}:${sec.toString().padStart(2, '0')}`;
     };
 
-    const total = Math.max(getDurationSeconds(duration), 1);
-    const percent = (elapsed / total) * 100;
+    const total = getDurationSeconds(duration);
+    // Songs with missing/blank duration metadata (stored as "0:00") used to
+    // force a 1-second fallback here, which made `percent` blow past 100
+    // almost instantly and left the bar stuck looking permanently full -
+    // not just wrong-looking but indistinguishable from a hung sync. With no
+    // real duration to measure against, show an empty (not full) bar instead.
+    const percent = total > 0 ? Math.min(100, Math.max(0, (elapsed / total) * 100)) : 0;
 
     return (
         <div className="space-y-2 mb-6 relative z-10">
             <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden border border-white/5">
-                <motion.div 
-                    className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]" 
+                <motion.div
+                    className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 shadow-[0_0_10px_rgba(139,92,246,0.5)]"
                     initial={{ width: 0 }}
                     animate={{ width: `${percent}%` }}
                     transition={{ ease: "linear", duration: 0.3 }}
@@ -383,7 +388,7 @@ const PlayerProgressBar = ({ duration, id }: { duration: string, id: number }) =
             </div>
             <div className="flex justify-between text-[10px] text-neutral-500 font-bold uppercase tracking-tighter">
                 <span>{formatTime(elapsed)}</span>
-                <span>{duration}</span>
+                <span>{total > 0 ? duration : '--:--'}</span>
             </div>
         </div>
     );
