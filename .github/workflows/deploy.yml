@@ -1,0 +1,66 @@
+# Builds and deploys Off Key Karaoke to Cloudflare (Worker "offkey-karaoke",
+# offkeykaraoke.party) on every push to master - same setup as Hoopspire.
+#
+# Before this, a push to GitHub sat there until someone ran
+# `npm run cf:deploy` by hand, so fixes could be on master while the live
+# site still ran old code.
+
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: {}
+
+# Don't let an older deploy finish after a newer one and win the race.
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Local deploys pick these up from .env.local, and OpenNext bakes them
+      # into the Worker at build time (NEXT_PUBLIC_* also get inlined into the
+      # browser bundle). CI has no .env.local, so recreate it from secrets.
+      - name: Write build env
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          NEXT_PUBLIC_ADMIN_EMAIL: ${{ secrets.NEXT_PUBLIC_ADMIN_EMAIL }}
+        run: |
+          for name in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Missing GitHub secret $name"; exit 1; fi
+          done
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY"
+            echo "ADMIN_EMAIL=$ADMIN_EMAIL"
+            echo "NEXT_PUBLIC_ADMIN_EMAIL=$NEXT_PUBLIC_ADMIN_EMAIL"
+          } > .env.local
+
+      # cf:deploy = opennextjs-cloudflare build && deploy (wrangler under the
+      # hood), which authenticates from these env vars. The token must belong
+      # to the account that owns the offkey-karaoke Worker.
+      - name: Build & deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run cf:deploy
