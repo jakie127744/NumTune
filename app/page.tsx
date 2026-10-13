@@ -91,7 +91,47 @@ export default function Home() {
           </Link>
 
         </div>
-        
+
+        {/* How it works - first-time visitors otherwise land on four tiles
+            with no idea which one is theirs or that guests need a room code. */}
+        <section className="space-y-6">
+          <h2 className="text-center text-sm font-bold uppercase tracking-[0.3em] text-neutral-500">How it works</h2>
+          <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                icon: Music,
+                color: 'text-violet-400',
+                title: 'Host starts a party',
+                body: 'Tap Host and sign in. You get a 4-character room code and a QR code to share, and you run the queue from the dashboard.',
+              },
+              {
+                icon: Monitor,
+                color: 'text-blue-400',
+                title: 'Open Stage on the TV',
+                body: "Open Stage on the TV - over HDMI, screen casting, or the TV's browser. That's where the karaoke videos play for everyone.",
+              },
+              {
+                icon: Smartphone,
+                color: 'text-green-400',
+                title: 'Guests join & pick songs',
+                body: "Guests scan the host's QR code, or tap Guest and type the room code. No app, no sign-up - just enter a name and pick a song.",
+              },
+            ].map((step, i) => (
+              <li key={step.title} className="relative p-5 rounded-2xl bg-neutral-900/50 border border-white/5">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="w-7 h-7 shrink-0 rounded-full bg-white/10 flex items-center justify-center text-xs font-black">{i + 1}</span>
+                  <step.icon className={`w-5 h-5 ${step.color}`} />
+                  <h3 className="font-bold">{step.title}</h3>
+                </div>
+                <p className="text-sm text-neutral-400 leading-relaxed">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+          <p className="text-center text-sm text-neutral-500">
+            Song not in the library? Hosts can paste any YouTube karaoke link to add it.
+          </p>
+        </section>
+
         <div className="flex flex-col items-center justify-center gap-4 mt-12">
              <div className="flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity">
                 <span className="text-xs text-neutral-500 font-medium">Created by</span>

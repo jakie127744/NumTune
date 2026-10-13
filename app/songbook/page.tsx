@@ -1,41 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Search, PlusCircle, Edit, Trash2, Disc, Loader2, Music, Mic2, CloudDownload, Link as LinkIcon } from 'lucide-react';
+import { Search, PlusCircle, Edit, Trash2, Loader2, Music, CloudDownload, Link as LinkIcon } from 'lucide-react';
 import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { confirmDialog } from '@/lib/confirm';
 import { roomCodeStorage } from '@/lib/roomCodeStorage';
-
-// Types for YouTube API Response
-interface YouTubeSearchResult {
-  id: string;
-  snippet: {
-    title: string;
-    channelTitle: string;
-    thumbnails: {
-      high: { url: string };
-      medium?: { url: string };
-    };
-  };
-  contentDetails?: {
-      duration: string;
-  };
-}
-
-
+import { extractVideoId, lookupYouTubeVideo, YouTubeVideoInfo } from '@/lib/youtube';
 
 export default function SongbookPage() {
   // State
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<YouTubeSearchResult[]>([]);
-  const [libraryResults, setLibraryResults] = useState<any[]>([]); 
-  const [isSearching, setIsSearching] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
   const [library, setLibrary] = useState<any[]>([]);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState('');
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -44,7 +23,7 @@ export default function SongbookPage() {
   const addToQueue = useTunrStore((state) => state.addToQueue);
   const roomCode = useTunrStore((state) => state.roomCode);
 
-  // Load Library & Default Recommendations on Mount
+  // Load Library on Mount
   useEffect(() => {
     const init = async () => {
         // Ensure store knows we are host
@@ -62,7 +41,6 @@ export default function SongbookPage() {
         setIsAdmin(process.env.NODE_ENV !== 'production' && !!adminEmail && session?.user?.email === adminEmail);
 
         await fetchLibrary();
-        performSearch("Popular Karaoke Songs");
     };
     init();
   }, []);
@@ -72,148 +50,40 @@ export default function SongbookPage() {
     setLibrary(data);
   };
 
-  const parseDuration = (duration: string) => {
-    // Handle timestamp format (e.g., "3:45" or "1:02:30")
-    if (duration.includes(':')) {
-        const parts = duration.split(':').map(Number);
-        if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-        if (parts.length === 2) return (parts[0] * 60) + parts[1];
-        return parts[0] || 0;
-    }
-    // Handle ISO 8601 format
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    if (!match) return 0;
-    const hours = (parseInt(match[1]) || 0);
-    const minutes = (parseInt(match[2]) || 0);
-    const seconds = (parseInt(match[3]) || 0);
-    return (hours * 3600) + (minutes * 60) + seconds;
-  };
-
-  // Debounce Search
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim()) {
-        performSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-        setLibraryResults([]);
-        setSearchError(null);
-      }
-    }, 500); 
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
-
-  const performSearch = async (term: string) => {
-    if (!term.trim()) return;
-    setIsSearching(true);
-    setSearchError(null); 
-    
-    // 1. Local Library Search
-    const lowerTerm = term.toLowerCase();
-    const localMatches = library.filter(s => 
-        s.title.toLowerCase().includes(lowerTerm) || 
-        s.artist.toLowerCase().includes(lowerTerm) ||
-        s.song_number.toString().includes(lowerTerm)
+  // Search only the saved library. New songs come in by pasting a YouTube
+  // link (YouTube search was removed - it needed a quota-limited API key).
+  const libraryResults = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    if (!term) return [];
+    return library.filter(s =>
+        s.title.toLowerCase().includes(term) ||
+        s.artist.toLowerCase().includes(term) ||
+        s.song_number.toString().includes(term)
     );
-    setLibraryResults(localMatches);
-
-    // 2. YouTube Search
-    try {
-      const SOURCES = [
-          "Atomic Karaoke", "PROmusicCOVER", "CoversPH", "Singstar Karaoke",
-          "Top Hits Karaoke", "Sing King Karaoke", "Karaokey TV",
-          "Pinoy Videoke Tambayan", "Mibalmz Karaoke", "KaraOcraze", 
-          "Pinoy Karaoke Channel", "Crosswave Music"
-      ];
-      
-      const selectedSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-      const cleanTerm = term.toLowerCase().includes('karaoke') 
-          ? term 
-          : `${term} ${selectedSource}`;
-      
-      const query = encodeURIComponent(cleanTerm);
-      
-      const searchRes = await fetch(`/api/yt-search?q=${query}`);
-      const searchData = await searchRes.json();
-
-      if (searchData.items?.length) {
-          const filtered = searchData.items.filter((video: any) => {
-            const durationSec = parseDuration(video.contentDetails.duration);
-            return durationSec <= 600 && durationSec >= 30;
-          });
-          setSearchResults(filtered);
-      } else {
-          setSearchResults([]);
-      }
-
-    } catch (error) {
-      console.error("YouTube Search Error:", error);
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  }, [searchQuery, library]);
 
   const handleUrlAdd = async () => {
     if (!manualUrl.trim()) return;
+    const videoId = extractVideoId(manualUrl);
+    if (!videoId) {
+      toast.error("Invalid YouTube link. Paste a full YouTube URL or an 11-character video ID.");
+      return;
+    }
+
     setIsFetchingUrl(true);
     try {
-      // Robust YouTube ID extraction matching standard links, shorts, and raw 11-char IDs
-      const extractVideoId = (url: string) => {
-        const cleanUrl = url.trim();
-        if (cleanUrl.length === 11 && /^[a-zA-Z0-9_-]{11}$/.test(cleanUrl)) {
-          return cleanUrl;
-        }
-        const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
-        const match = cleanUrl.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : null;
-      };
-
-      const videoId = extractVideoId(manualUrl);
-
-      if (!videoId) {
-        toast.error("Invalid YouTube URL. Please paste a full YouTube link or an 11-character video ID.");
-        return;
-      }
-
-      let video: any = null;
-
-      const res = await fetch(`/api/yt-search?q=${videoId}`);
-      const data = await res.json();
-      if (data.items?.length) {
-        video = data.items.find((v: any) => v.id === videoId) || data.items[0];
-      }
-
-      if (video) {
-        // Normalize object structure for handleQuickAdd
-        const normalizedVideo: YouTubeSearchResult = {
-          id: video.id,
-          snippet: {
-            title: video.snippet.title,
-            channelTitle: video.snippet.channelTitle,
-            thumbnails: {
-              high: { url: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '' }
-            }
-          },
-          contentDetails: video.contentDetails ? {
-            duration: video.contentDetails.duration
-          } : undefined
-        };
-        
-        await handleQuickAdd(normalizedVideo);
-        setManualUrl('');
-      } else {
-        toast.error("Could not find video details. The video might be private or unavailable.");
-      }
+      const video = await lookupYouTubeVideo(videoId);
+      await handleQuickAdd(video);
+      setManualUrl('');
     } catch (error: any) {
       console.error("URL Add Error:", error);
-      toast.error(`URL Add Error: ${error.message || error}`);
+      toast.error(error.message);
     } finally {
       setIsFetchingUrl(false);
     }
   };
 
-  const handleQuickAdd = async (video: YouTubeSearchResult) => {
+  const handleQuickAdd = async (video: YouTubeVideoInfo) => {
     // Check if song already exists in library (by YouTube ID)
     const existingSong = library.find(s => s.youtube_id === video.id);
 
@@ -253,29 +123,17 @@ export default function SongbookPage() {
 
     const nextId = (maxIdData && maxIdData.length > 0 ? maxIdData[0].song_number : 9999) + 1;
 
-    // Helper to format duration to MM:SS (handles both ISO and already formatted)
-    const formatDuration = (input: string) => {
-        if (input.includes(':')) return input; // Already MM:SS
-        
-        const match = input.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-        if (!match) return "0:00";
-        const h = parseInt(match[1] || '0');
-        const m = parseInt(match[2] || '0');
-        const s = parseInt(match[3] || '0');
-        
-        let totalM = (h * 60) + m;
-        return `${totalM}:${s.toString().padStart(2, '0')}`;
-    };
-
-    const formattedDuration = video.contentDetails ? formatDuration(video.contentDetails.duration) : "0:00";
+    // oEmbed has no duration; "0:00" is the existing "unknown" value the
+    // player already handles (shows --:-- instead of a progress bar).
+    const formattedDuration = "0:00";
 
     // 2. Insert into Songs Library
     const newSong = {
       song_number: nextId,
-      title: video.snippet.title,
-      artist: video.snippet.channelTitle,
-      youtube_id: video.id, // Direct ID from videos.list
-      thumbnail_url: video.snippet.thumbnails.high.url,
+      title: video.title,
+      artist: video.author,
+      youtube_id: video.id,
+      thumbnail_url: video.thumbnail,
       duration: formattedDuration, // Save as MM:SS
       genre: "Unknown", 
       decade: "2020s"
@@ -345,60 +203,16 @@ const FALLBACK_SONGS = [
 
   const seedLibrary = async () => {
     setIsSeeding(true);
-    let songsToInsert: any[] = [];
-    
-    try {
-        // Curated List of Sources
-        const SOURCES = [
-            "Atomic Karaoke",
-            "PROmusicCOVER",
-            "CoversPH",
-            "Singstar Karaoke",
-            "Top Hits Karaoke",
-            "Sing King Karaoke",
-            "Karaokey TV",
-            "Pinoy Videoke Tambayan"
-        ];
-        
-        // Pick a random source each time to diversify
-        const selectedSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-        console.log(`Attempting to seed via yt-search (${selectedSource})...`);
-
-        // 1. Fetch Popular Karaoke from selected source (no-API scraper)
-        const res = await fetch(`/api/yt-search?q=${encodeURIComponent(selectedSource)}`);
-        const data = await res.json();
-
-        if (data.error) throw new Error(data.error);
-        if (!data.items?.length) throw new Error("No songs found");
-
-        // 2. Filter valid songs (1m - 7m)
-        const validVideos = data.items.filter((v:any) => {
-             const d = parseDuration(v.contentDetails.duration);
-             return d >= 60 && d <= 420;
-        });
-
-        // Map to DB structure
-        songsToInsert = validVideos.map((v:any) => ({
-            title: v.snippet.title,
-            artist: v.snippet.channelTitle,
-            youtube_id: v.id,
-            thumbnail_url: v.snippet.thumbnails?.high?.url || "",
-            genre: "Pop",
-            decade: "2020s"
-        }));
-
-    } catch (e: any) {
-        console.warn("YouTube search failed. Switching to Fallback List.", e);
-        // Fallback to hardcoded list logic
-        songsToInsert = FALLBACK_SONGS.map(s => ({
-            title: s.title,
-            artist: s.artist,
-            youtube_id: s.youtube_id,
-            thumbnail_url: s.thumbnail,
-            genre: "Classic",
-            decade: "Mixed"
-        }));
-    }
+    // Starter set for an empty library (YouTube search is gone, so this no
+    // longer pulls from a random channel).
+    const songsToInsert = FALLBACK_SONGS.map(s => ({
+        title: s.title,
+        artist: s.artist,
+        youtube_id: s.youtube_id,
+        thumbnail_url: s.thumbnail,
+        genre: "Classic",
+        decade: "Mixed"
+    }));
 
     try {
         if (songsToInsert.length === 0) {
@@ -510,29 +324,17 @@ const FALLBACK_SONGS = [
                 </div>
                 <input 
                     className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-base font-normal placeholder:text-[#ab9db9]" 
-                    placeholder="Search Artist, Title..." 
+                    placeholder="Search your library..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <button 
-                    onClick={() => performSearch(searchQuery)}
-                    disabled={isSearching}
-                    className="bg-primary text-white px-6 m-1.5 rounded-lg font-bold text-sm hover:brightness-110 disabled:opacity-50"
-                >
-                    {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Search'}
-                </button>
               </div>
             </label>
 
-            {/* Manual URL Bar - dev-only. Not working reliably on the deployed
-                site, so it's hidden there rather than shipping a broken
-                control; still needed in dev, since it's the primary way
-                songs get added to the library locally. */}
-            {process.env.NODE_ENV !== 'production' && (
-              <>
+            {/* Add a new song by pasting its YouTube link */}
                 <div className="flex items-center gap-3 py-2">
                   <div className="h-px flex-1 bg-violet-500/20" />
-                  <span className="text-xs text-violet-400 font-black uppercase tracking-[0.2em] px-4">Direct Link Add</span>
+                  <span className="text-xs text-violet-400 font-black uppercase tracking-[0.2em] px-4">Add a New Song</span>
                   <div className="h-px flex-1 bg-violet-500/20" />
                 </div>
 
@@ -545,7 +347,7 @@ const FALLBACK_SONGS = [
                         </div>
                         <input
                             className="w-full bg-transparent border-none focus:outline-none focus:ring-0 px-4 text-base font-normal text-white placeholder:text-neutral-500"
-                            placeholder="Paste YouTube Video URL (e.g. youtube.com/watch?v=...)"
+                            placeholder="Paste a YouTube link (e.g. youtube.com/watch?v=...)"
                             value={manualUrl}
                             onChange={(e) => setManualUrl(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
@@ -560,8 +362,6 @@ const FALLBACK_SONGS = [
                     </div>
                     </label>
                 </div>
-              </>
-            )}
 
             {/* Quick Filters Removed */}
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -613,51 +413,12 @@ const FALLBACK_SONGS = [
              </div>
           )}
 
-          {/* 2. YOUTUBE RESULTS */}
-          <div className="flex items-center justify-between px-4 mb-6">
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <Disc className="w-6 h-6 text-red-500" />
-              {searchResults.length > 0 ? "New from YouTube" : "Trending Karaoke"}
-            </h2>
-          </div>
-          
-          {/* Error Display */}
-          {searchError && (
-              <div className="mx-4 mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-xl text-red-200">
-                  <p className="font-bold flex items-center gap-2">
-                       <span className="text-xl">⚠️</span> {searchError}
-                  </p>
-                  <p className="text-sm mt-1 opacity-80">Please check your API Key quota or internet connection.</p>
+          {searchQuery.trim() && libraryResults.length === 0 && (
+              <div className="text-center text-neutral-500 py-10 px-4">
+                  <p>No songs in the library match &ldquo;{searchQuery}&rdquo;.</p>
+                  <p className="text-sm mt-1">Find it on YouTube and paste the link above to add it.</p>
               </div>
           )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
-            {searchResults.length === 0 && !isSearching && libraryResults.length === 0 && !searchError && (
-                <div className="col-span-full text-center text-neutral-500 py-10">
-                    <p>{searchQuery ? "No songs found." : "Start searching to find songs."}</p>
-                </div>
-            )}
-            
-            {searchResults.map((video) => (
-                <div key={video.id} className="group flex flex-col gap-3 p-3 rounded-2xl bg-white dark:bg-[#251b30] hover:ring-2 ring-primary/40 transition-all border border-transparent dark:border-white/5 animate-in fade-in zoom-in duration-300">
-                <div className="relative w-full aspect-video rounded-xl overflow-hidden shadow-lg shadow-black/20">
-                    <img src={video.snippet.thumbnails.high.url} alt={video.snippet.title} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-all"></div>
-                </div>
-                <div className="flex flex-col flex-grow">
-                    <h3 className="font-bold text-base line-clamp-2 leading-snug" dangerouslySetInnerHTML={{ __html: video.snippet.title }} />
-                    <p className="text-[#ab9db9] text-xs mt-1">{video.snippet.channelTitle}</p>
-                </div>
-                <button 
-                    onClick={() => handleQuickAdd(video)}
-                    className="w-full mt-2 py-2 px-4 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-full text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                >
-                    <PlusCircle className="w-4 h-4" />
-                    Save & Queue
-                </button>
-                </div>
-            ))}
-          </div>
         </section>
 
         {/* Library Table Section */}
@@ -710,7 +471,7 @@ const FALLBACK_SONGS = [
                                     className="flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-full font-bold transition-all disabled:opacity-50"
                                 >
                                     {isSeeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudDownload className="w-4 h-4" />}
-                                    Auto-Populate (Random Source)
+                                    Add Starter Songs
                                 </button>
                              </div>
                           </td>
@@ -738,10 +499,6 @@ const FALLBACK_SONGS = [
             </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-1">
-          <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-          YouTube API Connected
-        </div>
       </div>
     </div>
   );

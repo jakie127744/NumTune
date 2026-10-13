@@ -1,42 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Search, PlusCircle, Disc, Loader2, Music, CloudDownload, Edit, Trash2, Mic2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, PlusCircle, Disc, Loader2, Music, Mic2 } from 'lucide-react';
 import { supabase, fetchAllRows, upsertSongByYoutubeId } from '@/lib/supabase';
 import { useTunrStore } from '@/lib/store';
 import { toast } from '@/lib/toast';
 import { roomCodeStorage } from '@/lib/roomCodeStorage';
-
-// Types for YouTube API Response
-interface YouTubeSearchResult {
-  id: string;
-  snippet: {
-    title: string;
-    channelTitle: string;
-    thumbnails: {
-      high: { url: string };
-      medium?: { url: string };
-    };
-  };
-  contentDetails?: {
-      duration: string;
-  };
-}
+import { extractVideoId, lookupYouTubeVideo, YouTubeVideoInfo } from '@/lib/youtube';
 
 export const SongbookPanel: React.FC = () => {
   // State
   const [searchQuery, setSearchQuery] = useState('');
   const [singerInput, setSingerInput] = useState('Host');
-  const [searchResults, setSearchResults] = useState<YouTubeSearchResult[]>([]);
-  const [libraryResults, setLibraryResults] = useState<any[]>([]); 
-  const [isSearching, setIsSearching] = useState(false);
   const [library, setLibrary] = useState<any[]>([]);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [manualUrl, setManualUrl] = useState('');
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
 
   // Store actions
   const addToQueue = useTunrStore((state) => state.addToQueue);
 
-  // Load Library & Default Recommendations on Mount
+  // Load Library on Mount
   useEffect(() => {
     const init = async () => {
         // Recover Room Code from Host session
@@ -46,7 +27,6 @@ export const SongbookPanel: React.FC = () => {
         }
 
         await fetchLibrary();
-        performSearch("Popular Karaoke Songs");
     };
     init();
   }, []);
@@ -56,124 +36,40 @@ export const SongbookPanel: React.FC = () => {
     setLibrary(data);
   };
 
-  const parseDuration = (duration: string) => {
-    // Handle timestamp format (e.g., "3:45" or "1:02:30")
-    if (duration.includes(':')) {
-        const parts = duration.split(':').map(Number);
-        if (parts.length === 3) return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
-        if (parts.length === 2) return (parts[0] * 60) + parts[1];
-        return parts[0] || 0;
-    }
-    // Handle ISO 8601 format
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    if (!match) return 0;
-    const hours = (parseInt(match[1]) || 0);
-    const minutes = (parseInt(match[2]) || 0);
-    const seconds = (parseInt(match[3]) || 0);
-    return (hours * 3600) + (minutes * 60) + seconds;
-  };
-
-  // Debounce Search
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim()) {
-        performSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-        setLibraryResults([]);
-        setSearchError(null);
-      }
-    }, 500); 
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
-
-  const performSearch = async (term: string) => {
-    if (!term.trim()) return;
-    setIsSearching(true);
-    setSearchError(null); 
-    
-    // 1. Local Library Search
-    const lowerTerm = term.toLowerCase();
-    const localMatches = library.filter(s => 
-        s.title.toLowerCase().includes(lowerTerm) || 
-        s.artist.toLowerCase().includes(lowerTerm) ||
-        s.song_number.toString().includes(lowerTerm)
+  // Search only the saved library. New songs come in by pasting a YouTube
+  // link (YouTube search was removed - it needed a quota-limited API key).
+  const libraryResults = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    if (!term) return [];
+    return library.filter(s =>
+        s.title.toLowerCase().includes(term) ||
+        s.artist.toLowerCase().includes(term) ||
+        s.song_number.toString().includes(term)
     );
-    setLibraryResults(localMatches);
-
-    // 2. YouTube Search
-    try {
-      const SOURCES = [
-          "Atomic Karaoke", "PROmusicCOVER", "CoversPH", "Singstar Karaoke",
-          "Top Hits Karaoke", "Sing King Karaoke", "Karaokey TV",
-          "Pinoy Videoke Tambayan", "Mibalmz Karaoke", "KaraOcraze", 
-          "Pinoy Karaoke Channel", "Crosswave Music"
-      ];
-      
-      const selectedSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-      const cleanTerm = term.toLowerCase().includes('karaoke') 
-          ? term 
-          : `${term} ${selectedSource}`;
-      
-      const query = encodeURIComponent(cleanTerm);
-
-      const searchRes = await fetch(`/api/yt-search?q=${query}`);
-      const searchData = await searchRes.json();
-
-      if (!searchRes.ok) {
-          setSearchError(searchData.error || 'YouTube search failed. Please try again.');
-          setSearchResults([]);
-      } else if (searchData.items?.length) {
-          const filtered = searchData.items.filter((video: any) => {
-            const durationSec = parseDuration(video.contentDetails.duration);
-            return durationSec <= 600 && durationSec >= 30;
-          });
-          setSearchResults(filtered);
-      } else {
-          setSearchResults([]);
-      }
-
-    } catch (error: any) {
-      console.error("YouTube Search Error:", error);
-      setSearchError(error.message || 'YouTube search failed. Please try again.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
+  }, [searchQuery, library]);
 
   const handleUrlAdd = async () => {
     if (!manualUrl.trim()) return;
+    const videoId = extractVideoId(manualUrl);
+    if (!videoId) {
+      toast.error("Invalid YouTube link. Paste a full YouTube URL (e.g. youtube.com/watch?v=...).");
+      return;
+    }
+
     setIsFetchingUrl(true);
     try {
-      const regExp = /^.*(youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-      const match = manualUrl.match(regExp);
-      const videoId = (match && match[2].length === 11) ? match[2] : null;
-
-      if (!videoId) {
-        toast.error("Invalid YouTube URL. Please paste a full YouTube link.");
-        return;
-      }
-
-      // Fetch details via No-API route (using the ID as query)
-      const res = await fetch(`/api/yt-search?q=${videoId}`);
-      const data = await res.json();
-      
-      if (data.items?.length) {
-        const video = data.items.find((v: any) => v.id === videoId) || data.items[0];
-        handleQuickAdd(video);
-        setManualUrl('');
-      } else {
-        toast.error("Could not find video details. The video might be private or unavailable.");
-      }
-    } catch (error) {
+      const video = await lookupYouTubeVideo(videoId);
+      await handleQuickAdd(video);
+      setManualUrl('');
+    } catch (error: any) {
       console.error("URL Add Error:", error);
+      toast.error(error.message);
     } finally {
       setIsFetchingUrl(false);
     }
   };
 
-  const handleQuickAdd = async (video: YouTubeSearchResult) => {
+  const handleQuickAdd = async (video: YouTubeVideoInfo) => {
     // Check if song already exists in library (by YouTube ID)
     const existingSong = library.find(s => s.youtube_id === video.id);
 
@@ -195,29 +91,17 @@ export const SongbookPanel: React.FC = () => {
     const { data: maxIdData } = await supabase.from('songs').select('song_number').order('song_number', { ascending: false }).limit(1).single();
     const nextId = (maxIdData?.song_number || 9999) + 1;
 
-    // Helper to format duration to MM:SS (handles both ISO and already formatted)
-    const formatDuration = (input: string) => {
-        if (input.includes(':')) return input; // Already MM:SS
-        
-        const match = input.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-        if (!match) return "0:00";
-        const h = parseInt(match[1] || '0');
-        const m = parseInt(match[2] || '0');
-        const s = parseInt(match[3] || '0');
-        
-        let totalM = (h * 60) + m;
-        return `${totalM}:${s.toString().padStart(2, '0')}`;
-    };
-
-    const formattedDuration = video.contentDetails ? formatDuration(video.contentDetails.duration) : "0:00";
+    // oEmbed has no duration; "0:00" is the existing "unknown" value the
+    // player already handles (shows --:-- instead of a progress bar).
+    const formattedDuration = "0:00";
 
     // 2. Insert into Songs Library
     const newSong = {
       song_number: nextId,
-      title: video.snippet.title,
-      artist: video.snippet.channelTitle,
+      title: video.title,
+      artist: video.author,
       youtube_id: video.id,
-      thumbnail_url: video.snippet.thumbnails.high.url,
+      thumbnail_url: video.thumbnail,
       duration: formattedDuration,
       genre: "Unknown", 
       decade: "2020s"
@@ -270,25 +154,20 @@ export const SongbookPanel: React.FC = () => {
                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
                      <input 
                          className="w-full bg-black/50 border border-white/10 rounded-xl h-12 pl-12 pr-4 text-sm focus:outline-none focus:border-primary transition-all" 
-                         placeholder="Search Artist, Title, or YouTube..." 
+                         placeholder="Search your library..." 
                          value={searchQuery}
                          onChange={(e) => setSearchQuery(e.target.value)}
                      />
-                     {isSearching && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-primary" />}
                 </div>
            </div>
 
-           {/* Manual URL Add - dev-only. It's not working reliably on the
-               deployed site, so it's hidden there rather than shipping a
-               broken control; still needed in dev, since it's the primary
-               way songs get added to the library locally. */}
-           {process.env.NODE_ENV !== 'production' && (
+           {/* Add a new song by pasting its YouTube link */}
                <div className="flex gap-2 p-1.5 bg-violet-500/10 rounded-2xl border border-violet-500/20">
                     <div className="relative flex-1">
                         <Music className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-violet-400" />
                         <input
                             className="w-full bg-black/40 border border-white/5 rounded-xl h-10 pl-10 pr-4 text-xs focus:outline-none focus:border-violet-500 transition-all placeholder:text-neutral-500"
-                            placeholder="Or paste YouTube URL to add immediately..."
+                            placeholder="Paste a YouTube link to add a new song..."
                             value={manualUrl}
                             onChange={(e) => setManualUrl(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleUrlAdd()}
@@ -302,7 +181,6 @@ export const SongbookPanel: React.FC = () => {
                         {isFetchingUrl ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Add Link'}
                     </button>
                </div>
-           )}
        </div>
 
        <div className="flex-1 overflow-y-auto pr-2 space-y-8">
@@ -344,43 +222,17 @@ export const SongbookPanel: React.FC = () => {
                 </div>
             )}
 
-            {/* 2. YOUTUBE RESULTS */}
-            {searchError && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-200 text-xs">
-                    {searchError}
+            {searchQuery.trim() && libraryResults.length === 0 && (
+                <div className="text-center py-20 opacity-50 text-sm">
+                    <p>No songs in the library match &ldquo;{searchQuery}&rdquo;.</p>
+                    <p className="mt-1">Find it on YouTube and paste the link above to add it.</p>
                 </div>
             )}
-            {searchResults.length > 0 && (
-                <div className="space-y-4">
-                    <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
-                        <Disc className="w-4 h-4 text-red-500" /> New from YouTube
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {searchResults.map((video) => (
-                            <div key={video.id} className="flex flex-col gap-2 p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all">
-                                <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-                                    <img src={video.snippet.thumbnails.medium?.url || video.snippet.thumbnails.high.url} className="w-full h-full object-cover opacity-80" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <h4 className="font-bold text-sm line-clamp-1" dangerouslySetInnerHTML={{ __html: video.snippet.title }} />
-                                    <p className="text-xs text-neutral-400 truncate">{video.snippet.channelTitle}</p>
-                                </div>
-                                <button 
-                                    onClick={() => handleQuickAdd(video)}
-                                    className="w-full py-2 bg-primary/20 hover:bg-primary text-primary hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
-                                >
-                                    <PlusCircle className="w-4 h-4" /> Save & Queue
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
-            
+
             {!searchQuery && (
                 <div className="text-center py-20 opacity-30">
                     <Search className="w-16 h-16 mx-auto mb-4" />
-                    <p>Search for songs to add...</p>
+                    <p>Search your library, or paste a YouTube link above to add a new song.</p>
                 </div>
             )}
        </div>

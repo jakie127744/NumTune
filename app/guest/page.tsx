@@ -81,7 +81,8 @@ export default function GuestPage() {
                     </div>
                     <div className="space-y-1">
                         <h1 className="text-4xl font-black tracking-tight italic uppercase">Join Party</h1>
-                        <p className="text-white/40 font-medium">Enter the 4-digit code shown on stage</p>
+                        <p className="text-white/40 font-medium">Enter the 4-character room code from your host</p>
+                        <p className="text-white/25 text-sm">Don&apos;t have one? Ask the host - or scan their QR code to join instantly.</p>
                     </div>
                 </div>
 

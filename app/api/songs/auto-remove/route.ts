@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { fetchYouTubeOEmbed, isValidVideoId } from '@/lib/youtube';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,8 +22,8 @@ function getSupabaseAdmin() {
 // playback (embedding disabled, removed, private, or not found). Unlike
 // /api/songs DELETE this isn't admin/dev-gated - any signed-in session
 // (anonymous included) can call it, since it's the Stage itself reporting -
-// but it independently re-verifies the video is actually broken via the
-// YouTube Data API before deleting, so a malicious client calling this
+// but it independently re-verifies the video is actually broken via
+// YouTube's keyless oEmbed endpoint before deleting, so a malicious client calling this
 // directly can't use it to wipe arbitrary library entries.
 export async function POST(request: Request) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -46,24 +47,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Missing youtubeId' }, { status: 400 });
   }
 
-  const apiKey = process.env.YOUTUBE_API_KEY || process.env.NEXT_PUBLIC_YOUTUBE_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'YouTube API key not configured on server.' }, { status: 500 });
+  if (!isValidVideoId(youtubeId)) {
+    return NextResponse.json({ error: 'Invalid youtubeId' }, { status: 400 });
   }
 
   try {
-    const ytRes = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=status&id=${encodeURIComponent(youtubeId)}&key=${apiKey}`
-    );
-    const ytData = await ytRes.json();
-    const item = ytData.items?.[0];
-
-    // Broken = video no longer exists/is private (no item returned) or it
-    // exists but the uploader has disabled embedding.
-    const isBroken = !item || item.status?.embeddable === false;
-
-    if (!isBroken) {
+    // Broken = YouTube definitively says it can't be embedded (removed,
+    // private, or embedding disabled). If YouTube couldn't be reached we
+    // don't know, so keep the song rather than risk deleting a good one.
+    const check = await fetchYouTubeOEmbed(youtubeId);
+    if (check.status === 'ok') {
       return NextResponse.json({ deleted: false, reason: 'Video verified playable; not deleted.' });
+    }
+    if (check.status === 'error') {
+      return NextResponse.json({ deleted: false, reason: `Could not verify video: ${check.message}` }, { status: 502 });
     }
 
     const { data, error } = await supabaseAdmin.from('songs').delete().eq('youtube_id', youtubeId).select();
